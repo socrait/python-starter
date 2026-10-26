@@ -31,7 +31,7 @@ jobs:
             run: uv run ast-grep test --skip-snapshot-tests && uv run ast-grep scan
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
       - run: uv sync --locked
@@ -70,7 +70,7 @@ jobs:
     # end: postgres-only
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
           python-version: ${{ matrix.python }}
