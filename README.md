@@ -95,7 +95,7 @@ and its default is in [config.py](src/starter_app/config.py). The ones you'll se
 | `STARTER_APP_ENVIRONMENT` | `local` | `local`, `test`, `preview`, `production` |
 | `STARTER_APP_DATABASE_URL` | `sqlite:///./starter_app.db` | any SQLAlchemy URL |
 | `STARTER_APP_LOG_FORMAT` | text locally, JSON when deployed | |
-| `STARTER_APP_OTLP_ENDPOINT` | unset | OTLP/HTTP collector, e.g. `http://localhost:4318` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | OTLP/HTTP collector, e.g. `http://localhost:4318`; the standard OpenTelemetry variables apply |
 | `STARTER_APP_CORS_ALLOWED_ORIGINS` | `[]` | JSON list of origins |
 
 ## Tests
@@ -145,7 +145,7 @@ Before the first deploy:
 - **Schema.** Create a new database with `app db create`; upgrade existing ones with
   `app db migrate`.
 - **Probes.** `/health` answers while the process is up; `/ready` also checks the database.
-- **Metrics.** Set `STARTER_APP_OTLP_ENDPOINT` to export to an OpenTelemetry collector.
+- **Metrics.** Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export to an OpenTelemetry collector.
 
 ## Working with coding agents
 

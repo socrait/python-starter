@@ -80,6 +80,8 @@ migrations apply, downgrade, re-apply, and produce exactly the models' schema.
 - **Logs:** structlog events with key-value fields, rendered as text locally and JSON when
   deployed. Library logs (uvicorn, SQLAlchemy, Alembic) go through the same pipeline.
   Tracebacks are structured and omit local variables.
-- **Metrics:** OpenTelemetry, exported over OTLP/HTTP when `STARTER_APP_OTLP_ENDPOINT` is
-  set. Request duration is labeled by route template, never by raw path.
+- **Metrics:** OpenTelemetry, exported over OTLP/HTTP when `OTEL_EXPORTER_OTLP_ENDPOINT` is
+  set. FastAPI's built-in instrumentation records the standard HTTP metrics
+  (`http.server.request.duration` in seconds, labeled by route template); `AppMetrics`
+  adds business counters. Health probes are left out.
 - **Health:** `/health` (liveness) and `/ready` (database reachable).

@@ -1,48 +1,47 @@
 """OpenTelemetry metrics setup. App-agnostic: the app binds its own instruments in `metrics.py`."""
 
+import os
 from dataclasses import dataclass
 
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk.metrics import Histogram, MeterProvider
+from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import MetricReader, PeriodicExportingMetricReader
-from opentelemetry.sdk.metrics.view import ExplicitBucketHistogramAggregation, View
 from opentelemetry.sdk.resources import Resource
 
-# Millisecond buckets for request and operation durations, 5 ms to 10 s.
-DURATION_BUCKETS_MS = (5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000)
+# The exporter reads these (and OTEL_EXPORTER_OTLP_HEADERS, ..._TIMEOUT, ...) itself.
+OTLP_ENDPOINT_VARIABLES = ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
 
 
 @dataclass(frozen=True)
 class MetricsConfig:
     service_name: str
     environment: str
-    # Base URL of an OTLP/HTTP collector. None keeps metrics in-process only.
-    otlp_endpoint: str | None = None
     export_interval_seconds: float = 60
 
 
 def make_meter_provider(
     config: MetricsConfig, *, readers: tuple[MetricReader, ...] = ()
 ) -> MeterProvider:
-    """A meter provider exporting to the configured collector, if any, plus `readers`."""
+    """A meter provider with `readers`, exporting over OTLP/HTTP when an endpoint is set.
+
+    Export follows the standard `OTEL_EXPORTER_OTLP_*` environment variables, so
+    collectors and platforms configure it the way they configure any OpenTelemetry SDK.
+    Without an endpoint, measurements stay in-process and are discarded.
+    """
     all_readers = list(readers)
-    if config.otlp_endpoint:
-        exporter = OTLPMetricExporter(endpoint=f"{config.otlp_endpoint.rstrip('/')}/v1/metrics")
+    if any(os.environ.get(name) for name in OTLP_ENDPOINT_VARIABLES):
         all_readers.append(
             PeriodicExportingMetricReader(
-                exporter, export_interval_millis=config.export_interval_seconds * 1000
+                OTLPMetricExporter(),
+                export_interval_millis=config.export_interval_seconds * 1000,
             )
         )
     return MeterProvider(
         resource=Resource.create(
-            {"service.name": config.service_name, "deployment.environment": config.environment}
+            {
+                "service.name": config.service_name,
+                "deployment.environment.name": config.environment,
+            }
         ),
         metric_readers=all_readers,
-        views=[
-            View(
-                instrument_type=Histogram,
-                instrument_name="*duration*",
-                aggregation=ExplicitBucketHistogramAggregation(DURATION_BUCKETS_MS),
-            )
-        ],
     )

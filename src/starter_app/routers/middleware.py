@@ -5,7 +5,6 @@ from asgi_correlation_id import correlation_id
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from starter_app.logger import get_logger
-from starter_app.metrics import AppMetrics
 
 logger = get_logger(__name__)
 
@@ -17,9 +16,8 @@ class AccessLogMiddleware:
     variables pass through untouched. Sits inside the request-id middleware.
     """
 
-    def __init__(self, app: ASGIApp, *, metrics: AppMetrics):
+    def __init__(self, app: ASGIApp):
         self._app = app
-        self._metrics = metrics
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -40,21 +38,12 @@ class AccessLogMiddleware:
         try:
             await self._app(scope, receive, _send)
         finally:
-            duration_ms = round((time.perf_counter_ns() - start) / 1_000_000, 2)
             logger.info(
                 "request_finished",
                 method=scope["method"],
                 path=scope["path"],
                 status_code=status_code,
-                duration_ms=duration_ms,
-            )
-            # The route template, not the path: one series per endpoint, not per id.
-            route = scope.get("route")
-            self._metrics.record_request(
-                method=scope["method"],
-                route=getattr(route, "path", "unmatched"),
-                status_code=status_code,
-                duration_ms=duration_ms,
+                duration_ms=round((time.perf_counter_ns() - start) / 1_000_000, 2),
             )
 
 

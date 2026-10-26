@@ -60,9 +60,6 @@ class Settings(BaseSettings):
     log_level_key: str = "level"
     log_sql: bool = False
 
-    # OTLP/HTTP collector base URL, e.g. http://localhost:4318. Unset: metrics aren't exported.
-    otlp_endpoint: str | None = None
-
     # Header-based authentication for local development and tests. Never valid when deployed.
     dev_auth_enabled: bool | None = None
 

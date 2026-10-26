@@ -1,5 +1,6 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, MutableMapping
 from contextlib import asynccontextmanager
+from typing import Any
 
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI
@@ -17,6 +18,8 @@ from starter_app.routers.error_handlers import register_error_handlers
 from starter_app.routers.middleware import AccessLogMiddleware, NoCacheMiddleware
 
 logger = get_logger(__name__)
+
+_PROBE_PATHS = frozenset({"/health", "/ready"})
 
 
 def make_app(
@@ -56,6 +59,16 @@ def make_app(
         docs_url="/docs" if settings.docs_enabled else None,
         redoc_url=None,
         openapi_url="/openapi.json" if settings.docs_enabled else None,
+        # FastAPI's own OpenTelemetry instrumentation records the HTTP metrics
+        # (http.server.request.duration, http.server.active_requests). Logs stay with
+        # structlog; turn tracing on once a tracer provider is configured.
+        telemetry={
+            "meter_provider": meter_provider,
+            "metrics": True,
+            "tracing": False,
+            "logs": False,
+            "exclude": _is_probe,
+        },
     )
     app.state.settings = settings
     app.state.engine = engine
@@ -70,7 +83,7 @@ def make_app(
 
     # Added innermost first: the request id is assigned before anything logs.
     app.add_middleware(NoCacheMiddleware)
-    app.add_middleware(AccessLogMiddleware, metrics=metrics)
+    app.add_middleware(AccessLogMiddleware)
     if settings.cors_allowed_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -81,6 +94,11 @@ def make_app(
         )
     app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
     return app
+
+
+def _is_probe(scope: MutableMapping[str, Any]) -> bool:
+    # Health checks run every few seconds and would dominate the request metrics.
+    return scope.get("path") in _PROBE_PATHS
 
 
 def _default_authenticator(settings: Settings) -> Authenticator:

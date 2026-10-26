@@ -28,11 +28,11 @@ def test_requests_are_measured_by_route_template(
 
     with TestClient(app) as client:
         client.get("/projects/prj_123")
+        client.get("/health")
 
-    (point,) = histogram_points(metrics_reader, "http.server.request.duration")
-    attributes = point.attributes or {}
-    assert attributes["http.route"] == "/projects/{project_id}"
-    assert attributes["http.response.status_code"] == 401
+    points = histogram_points(metrics_reader, "http.server.request.duration")
+    routes = [(p.attributes or {}).get("http.route") for p in points]
+    assert routes == ["/projects/{project_id}"]  # probes are excluded
 
 
 def test_request_id_is_echoed_and_generated(client: TestClient):
