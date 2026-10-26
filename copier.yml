@@ -1,0 +1,66 @@
+# Copier template definition. template/ is generated from this repository by
+# scripts/build_template.py when a release is tagged; see
+# docs/guides/guide-maintaining-the-template.md.
+_subdirectory: template
+_templates_suffix: .jinja
+_min_copier_version: "9.10"
+_answers_file: .copier-answers.yml
+
+project_name:
+  type: str
+  help: Project name, lowercase with dashes (used for the distribution and the image)
+  validator: >-
+    {% if not (project_name | regex_search('^[a-z][a-z0-9-]*[a-z0-9]$')) %}
+    Use lowercase letters, digits, and dashes, starting with a letter.
+    {% endif %}
+
+package_name:
+  type: str
+  help: Python package name
+  default: "{{ project_name | replace('-', '_') }}"
+  validator: >-
+    {% if not (package_name | regex_search('^[a-z][a-z0-9_]*$')) %}
+    Use lowercase letters, digits, and underscores, starting with a letter.
+    {% endif %}
+
+env_prefix:
+  type: str
+  help: Prefix for environment variables (settings are read from <PREFIX>_*)
+  default: "{{ package_name | upper }}"
+  validator: >-
+    {% if not (env_prefix | regex_search('^[A-Z][A-Z0-9_]*$')) %}
+    Use uppercase letters, digits, and underscores.
+    {% endif %}
+
+database:
+  type: str
+  help: Database
+  choices:
+    SQLite (one machine, nothing to operate): sqlite
+    Postgres (several app instances, managed databases): postgres
+  default: sqlite
+
+forge:
+  type: str
+  help: Forge hosting the repository (decides the CI configuration)
+  choices:
+    GitHub: github
+    GitLab: gitlab
+    Neither (no CI configuration): none
+  default: github
+
+description:
+  type: str
+  help: One-line description
+  default: A FastAPI + SQLAlchemy service
+
+_message_after_copy: |
+  Created {{ project_name }}. Next:
+
+      cd {{ _copier_conf.dst_path }}
+      git init && uv sync && uv run pre-commit install
+      uv run app check
+      git add -A && git commit -m "Start from the template"   # includes the new uv.lock
+
+  The example domain (orgs, projects, tasks) shows each pattern once; replace it with yours.
+  Pull later template changes with `copier update`.

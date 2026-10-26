@@ -1,0 +1,18 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommitsDisabled"],
+  "minimumReleaseAge": "7 days",
+  "lockFileMaintenance": { "enabled": true, "schedule": ["before 6am on monday"] },
+  "packageRules": [
+    {
+      "description": "Group dev tooling so one PR moves them together",
+      "matchDepTypes": ["dependency-groups"],
+      "groupName": "dev tooling"
+    },
+    {
+      "matchManagers": ["github-actions", "pre-commit", "dockerfile", "docker-compose"],
+      "groupName": "ci and container images"
+    }
+  ],
+  "pre-commit": { "enabled": true }
+}

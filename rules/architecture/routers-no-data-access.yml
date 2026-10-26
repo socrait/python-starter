@@ -1,0 +1,29 @@
+# Routers talk to orchestrators. Reaching into repositories, records, or query scopes from a
+# router skips the unit of work and the subsystem's own rules.
+id: routers-no-data-access
+language: Python
+severity: error
+message: Routers must not import repositories, records, mappers, or QueryScope; call an orchestrator.
+files:
+  - "src/*/routers/**/*.py"
+utils:
+  # `# sg-ignore(routers-no-data-access): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(routers-no-data-access\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(routers-no-data-access\\):"
+rule:
+  all:
+    - kind: import_from_statement
+    - has:
+        field: module_name
+        regex: "\\.data\\.(repositories|records|mappers|query_scope)\\b"
+    - not:
+        matches: suppressed

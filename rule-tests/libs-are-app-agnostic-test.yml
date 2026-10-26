@@ -1,0 +1,16 @@
+id: libs-are-app-agnostic
+valid:
+  - import structlog
+  - from starter_app.libs.structured_logging import LogConfig
+  - |
+    # sg-ignore(libs-are-app-agnostic): reason the rule doesn't apply here
+    from starter_app.config import Settings
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    from starter_app.config import Settings
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    from starter_app.config import Settings
+  - from starter_app.config import get_settings
+  - import starter_app.logger

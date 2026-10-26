@@ -1,0 +1,108 @@
+# GitLab CI: the same checks as .github/workflows/ci.yml.
+stages: [check, test, build]
+
+default:
+  image: ghcr.io/astral-sh/uv:0.13-trixie-slim
+  interruptible: true
+
+variables:
+  UV_CACHE_DIR: .uv-cache
+  UV_LINK_MODE: copy
+  PYTHON_VERSION: "3.15"
+
+.uv:
+  cache:
+    key:
+      files: [uv.lock]
+    paths: [.uv-cache]
+  before_script:
+    - uv sync --locked --python "$PYTHON_VERSION"
+  after_script:
+    - uv cache prune --ci
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+# Independent checks run as parallel jobs, so one failure doesn't hide the others.
+lint:
+  stage: check
+  extends: .uv
+  script: [uv run ruff check]
+
+format:
+  stage: check
+  extends: .uv
+  script: [uv run ruff format --check]
+
+types:
+  stage: check
+  extends: .uv
+  script: [uv run ty check]
+
+rules:
+  stage: check
+  extends: .uv
+  script:
+    - uv run ast-grep test --skip-snapshot-tests
+    - uv run ast-grep scan
+
+secrets:
+  stage: check
+  image:
+    name: ghcr.io/gitleaks/gitleaks:v8.30.1
+    entrypoint: [""]
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - gitleaks git --verbose --redact .
+
+test:
+  stage: test
+  extends: .uv
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.14", "3.15"]
+  # begin: postgres-only
+  services:
+    - name: postgres:18
+      alias: postgres
+  variables:
+    POSTGRES_USER: app
+    POSTGRES_PASSWORD: app
+    POSTGRES_DB: app
+    # Postgres in CI catches what SQLite forgives; run SQLite locally for speed.
+    STARTER_APP_TEST_DATABASE_URL: postgresql+psycopg://app:app@postgres:5432/app_test
+  # end: postgres-only
+  script:
+    - uv run pytest -n auto --cov --cov-report=term --junitxml=report.xml
+  coverage: '/^TOTAL.*\s+(\d+(?:\.\d+)?)%/'
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+build-image:
+  stage: build
+  image: docker:29
+  services: [docker:29-dind]
+  variables:
+    DOCKER_TLS_CERTDIR: /certs
+  script:
+    - docker build -t starter-app:ci .
+    - docker save starter-app:ci -o image.tar
+  artifacts:
+    paths: [image.tar]
+    expire_in: 1 hour
+
+scan-image:
+  stage: build
+  needs: [build-image]
+  image:
+    name: aquasec/trivy:0.76.1
+    entrypoint: [""]
+  script:
+    - trivy image --input image.tar --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1

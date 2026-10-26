@@ -1,0 +1,15 @@
+id: commit-only-in-unit-of-work
+valid:
+  - session.flush()
+  - |
+    # sg-ignore(commit-only-in-unit-of-work): reason the rule doesn't apply here
+    session.commit()
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    session.commit()
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    session.commit()
+  - self._session.commit()
+  - session.commit()

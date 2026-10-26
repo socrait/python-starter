@@ -1,0 +1,80 @@
+from sqlalchemy.orm import Session
+
+from starter_app.core.models import Actor
+from starter_app.data.pagination import PageRequest
+from starter_app.data.records import ProjectRecord
+from starter_app.data.repositories import ProjectRepository
+from tests.fixtures.factories import ProjectFactory
+
+
+def test_member_sees_only_own_projects(
+    session: Session,
+    make_project: ProjectFactory,
+    sample_member: Actor,
+    other_member: Actor,
+):
+    own = make_project(sample_member)
+    make_project(other_member)
+
+    page = ProjectRepository(session).list_projects(sample_member, PageRequest())
+
+    assert [p.id for p in page.items] == [own.id]
+
+
+def test_admin_sees_every_project_in_org(
+    session: Session,
+    make_project: ProjectFactory,
+    sample_admin: Actor,
+    sample_member: Actor,
+    other_member: Actor,
+    other_org_admin: Actor,
+):
+    first = make_project(sample_member)
+    second = make_project(other_member)
+    make_project(other_org_admin)
+
+    page = ProjectRepository(session).list_projects(sample_admin, PageRequest())
+
+    assert {p.id for p in page.items} == {first.id, second.id}
+
+
+def test_get_project_hides_other_owner_other_org_and_deleted(
+    session: Session,
+    make_project: ProjectFactory,
+    sample_project: ProjectRecord,
+    sample_member: Actor,
+    other_member: Actor,
+    other_org_admin: Actor,
+):
+    repo = ProjectRepository(session)
+    deleted = make_project(sample_member, deleted=True)
+
+    assert repo.get_project(sample_member, sample_project.id) is not None
+    assert repo.get_project(other_member, sample_project.id) is None
+    assert repo.get_project(other_org_admin, sample_project.id) is None
+    assert repo.get_project(sample_member, deleted.id) is None
+
+
+def test_list_projects_pages_newest_first(
+    session: Session, make_project: ProjectFactory, sample_member: Actor
+):
+    created = [make_project(sample_member, name=f"p{i}") for i in range(5)]
+    repo = ProjectRepository(session)
+
+    first = repo.list_projects(sample_member, PageRequest(limit=2))
+    second = repo.list_projects(sample_member, PageRequest(limit=2, cursor=first.next_cursor))
+    last = repo.list_projects(sample_member, PageRequest(limit=2, cursor=second.next_cursor))
+
+    newest_first = [p.id for p in reversed(created)]
+    assert [p.id for p in first.items + second.items + last.items] == newest_first
+    assert last.next_cursor is None
+
+
+def test_soft_delete_is_scoped_to_visible_projects(
+    session: Session, sample_project: ProjectRecord, sample_member: Actor, other_org_admin: Actor
+):
+    repo = ProjectRepository(session)
+
+    assert repo.soft_delete_project(other_org_admin, sample_project.id) is False
+    assert repo.soft_delete_project(sample_member, sample_project.id) is True
+    assert repo.soft_delete_project(sample_member, sample_project.id) is False

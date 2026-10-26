@@ -1,0 +1,109 @@
+[project]
+name = "starter-app"
+version = "0.1.0"
+description = "A FastAPI + SQLAlchemy service"
+readme = "README.md"
+# begin: template-repo-only
+license = "MIT"
+license-files = ["LICENSE"]
+# end: template-repo-only
+requires-python = ">=3.14"
+dependencies = [
+    "alembic>=1.20",
+    "asgi-correlation-id>=5.0",
+    "fastapi>=0.149",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
+    "opentelemetry-sdk>=1.45.1",
+    "orjson>=3.13",
+    # begin: postgres-only
+    "psycopg[binary]>=3.3",
+    # end: postgres-only
+    "pydantic>=2.14",
+    "pydantic-settings>=2.16",
+    "sqlalchemy>=2.1",
+    "structlog>=26.1",
+    "uvicorn>=0.54",
+]
+
+[project.scripts]
+app = "starter_app.cli:main"
+
+[dependency-groups]
+dev = [
+    "ast-grep-cli>=0.51",
+    # begin: template-repo-only
+    "copier>=9.19.1",
+    # end: template-repo-only
+    "httpx2>=2.14",
+    "pre-commit>=4.7",
+    "pytest>=9.1",
+    "pytest-cov>=7.1",
+    "pytest-xdist>=3.8",
+    "ruff>=0.17",
+    "ty>=0.0.89",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/starter_app"]
+
+[tool.uv]
+# Only resolve releases at least a week old: a compromised or broken release is usually
+# yanked within days, before it can reach this lockfile.
+exclude-newer = "P7D"
+required-version = ">=0.13"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# No TC (type-checking-only imports): FastAPI, Pydantic, and SQLAlchemy read annotations at
+# runtime, so moving their imports under TYPE_CHECKING breaks the app.
+select = [
+    "E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ASYNC", "S", "PLC", "N", "DTZ", "PT",
+]
+ignore = [
+    "E501",   # the formatter owns line length
+    "RUF012", # mutable class attributes are fine on Pydantic/SQLAlchemy models
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106", "PLC2701"]
+"src/starter_app/data/migrations/versions/*.py" = ["N999"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query", "fastapi.Path"]
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+include = ["src", "tests", "scripts"]
+
+[tool.ty.rules]
+# Warnings fail the check too: keep the bar the same for every rule ty reports.
+deprecated = "error"
+
+[tool.pytest]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "-ra"]
+markers = [
+    "external: calls a real external service; skipped unless selected with -m external",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["starter_app"]
+branch = true
+omit = ["src/starter_app/data/migrations/*"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@abstractmethod"]
