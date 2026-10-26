@@ -34,8 +34,10 @@ uv run copier copy --defaults --data database=postgres --data forge=gitlab \
 uv run python scripts/check_generated.py /tmp/acme-billing --database postgres --forge gitlab
 ```
 
-CI does the same for every combination of database and forge
-([template.yml](../../.github/workflows/template.yml)).
+CI does the same for every combination of database and forge, and checks that a project
+generated from one release updates cleanly to the next with `copier update`
+([template.yml](../../.github/workflows/template.yml),
+[check_update.py](../../scripts/check_update.py)).
 
 ## Releasing
 

@@ -45,7 +45,11 @@ _configure_lock = Lock()
 
 
 def configure_logging(config: LogConfig) -> None:
-    """Configure structlog and the standard-library root logger. Safe to call again."""
+    """Configure structlog and the standard-library root logger, once at startup.
+
+    A later call applies to loggers first used after it; structlog caches loggers already
+    in use with the configuration they started with.
+    """
     with _configure_lock:
         _configure(config)
 

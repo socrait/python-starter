@@ -58,29 +58,23 @@ required-version = ">=0.13"
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
 # No TC (type-checking-only imports): FastAPI, Pydantic, and SQLAlchemy read annotations at
 # runtime, so moving their imports under TYPE_CHECKING breaks the app.
 select = [
-    "E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ASYNC", "S", "PLC", "N", "DTZ", "PT",
+    "E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ASYNC", "S", "PLC", "N", "DTZ", "PT", "FAST",
 ]
 ignore = [
     "E501",   # the formatter owns line length
     "RUF012", # mutable class attributes are fine on Pydantic/SQLAlchemy models
+    "FAST003", # path parameters are often read by a loader dependency (ProjectDep), not the route
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S105", "S106", "PLC2701"]
 "src/starter_app/data/migrations/versions/*.py" = ["N999"]
-
-[tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query", "fastapi.Path"]
-
-[tool.ty.environment]
-python-version = "3.14"
 
 [tool.ty.src]
 include = ["src", "tests", "scripts"]
@@ -91,7 +85,9 @@ deprecated = "error"
 
 [tool.pytest]
 testpaths = ["tests"]
-addopts = ["--strict-markers", "-ra"]
+# Unknown markers, config keys, and xfail passes are errors.
+strict = true
+addopts = ["-ra"]
 markers = [
     "external: calls a real external service; skipped unless selected with -m external",
 ]
