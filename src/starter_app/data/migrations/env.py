@@ -3,8 +3,6 @@ from typing import Any, Literal
 from alembic import context
 from sqlalchemy import Engine
 
-from starter_app.config import get_settings
-from starter_app.data.database import make_engine
 from starter_app.data.records import BaseRecord, UtcDateTime
 
 config = context.config
@@ -12,10 +10,10 @@ target_metadata = BaseRecord.metadata
 
 
 def _engine() -> Engine:
-    # Callers that already hold an engine (the app CLI, tests) pass it in; the bare
-    # `alembic` command falls back to the configured database.
     engine = config.attributes.get("engine")
-    return engine if engine is not None else make_engine(get_settings())
+    if engine is None:
+        raise RuntimeError("Run migrations through `uv run app db ...`, which supplies the engine")
+    return engine
 
 
 def _render_item(type_: str, obj: Any, _autogen_context: Any) -> str | Literal[False]:
@@ -47,6 +45,9 @@ def run_migrations_online() -> None:
             render_as_batch=True,
             render_item=_render_item,
             compare_server_default=True,
+            # The engine's SQLite driver runs DDL inside transactions, so a failed migration
+            # rolls back completely there too, as it does on Postgres.
+            transactional_ddl=True,
         )
         with context.begin_transaction():
             context.run_migrations()

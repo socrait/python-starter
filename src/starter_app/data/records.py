@@ -134,8 +134,9 @@ class TaskRecord(TimestampedRecord):
     status: Mapped[TaskStatus] = mapped_column(string_enum(TaskStatus), default=TaskStatus.OPEN)
     completed_at: Mapped[datetime | None] = mapped_column(default=None)
 
+    # The database deletes assignee rows with their task (ON DELETE CASCADE).
     assignees: Mapped[list[TaskAssigneeRecord]] = relationship(
-        cascade="all, delete-orphan", lazy="raise"
+        cascade="all, delete-orphan", passive_deletes=True, lazy="raise"
     )
 
 

@@ -140,12 +140,11 @@ def _db_downgrade(args: argparse.Namespace, settings: Settings) -> int:
 def _db_revision(args: argparse.Namespace, settings: Settings) -> int:
     with _engine(settings) as engine:
         config = make_alembic_config(engine)
-        # Format the generated migration with the project's own ruff.
-        ruff = str(Path(sys.executable).parent / "ruff")
+        # Format the generated migration with ruff, run as `python -m ruff`.
         config.set_section_option("post_write_hooks", "hooks", "format, fix")
         for name, options in (("format", "format"), ("fix", "check --fix --quiet")):
-            config.set_section_option("post_write_hooks", f"{name}.type", "exec")
-            config.set_section_option("post_write_hooks", f"{name}.executable", ruff)
+            config.set_section_option("post_write_hooks", f"{name}.type", "module")
+            config.set_section_option("post_write_hooks", f"{name}.module", "ruff")
             config.set_section_option(
                 "post_write_hooks", f"{name}.options", f"{options} REVISION_SCRIPT_FILENAME"
             )
