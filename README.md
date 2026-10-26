@@ -101,19 +101,23 @@ and its default is in [config.py](src/starter_app/config.py). The ones you'll se
 ## Tests
 
 ```bash
-uv run app test              # SQLite in memory, about a second
-# begin: postgres-only
-docker compose up -d         # Postgres 18 on 127.0.0.1:5432 (POSTGRES_PORT to change)
-STARTER_APP_TEST_DATABASE_URL=postgresql+psycopg://app:app@localhost:5432/app_test \
-  uv run app test -n auto    # the same suite on Postgres, one database per worker
-# end: postgres-only
+uv run app test              # in-memory SQLite, about a second
+uv run app test -n auto -x   # pytest arguments pass through
 ```
 
 Each test runs inside a transaction that is rolled back afterwards, including everything
 the code under test committed, so tests never see each other's data. CI runs the suite for
 Python 3.14 and 3.15.
 <!-- begin: postgres-only -->
-In CI it runs on Postgres, which catches what SQLite forgives.
+
+CI runs it on Postgres, which catches what SQLite forgives. To do the same locally, with
+one database per test worker:
+
+```bash
+docker compose up -d         # Postgres 18 on 127.0.0.1:5432 (POSTGRES_PORT to change)
+STARTER_APP_TEST_DATABASE_URL=postgresql+psycopg://app:app@localhost:5432/app_test \
+  uv run app test -n auto
+```
 <!-- end: postgres-only -->
 
 ## Deploying

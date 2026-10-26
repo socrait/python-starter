@@ -30,7 +30,11 @@ type Handler = Callable[[argparse.Namespace, Settings], int]
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for `uv run app ...`."""
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    # `app test` passes anything it doesn't recognize through to pytest.
+    args, extra = parser.parse_known_args(argv)
+    if extra and args.handler is not _test:
+        parser.error(f"unrecognized arguments: {' '.join(extra)}")
+    args.pytest_args = extra
     settings = get_settings()
     configure_logging_from_settings(settings)
     handler: Handler = args.handler
@@ -83,9 +87,9 @@ def _build_parser() -> argparse.ArgumentParser:
         ("check", "lint + typecheck + rules + test", _check),
     ):
         commands.add_parser(name, help=help_text).set_defaults(handler=handler)
-    test = commands.add_parser("test", help="Run pytest; extra arguments pass through")
-    test.add_argument("pytest_args", nargs=argparse.REMAINDER)
-    test.set_defaults(handler=_test)
+    commands.add_parser("test", help="Run pytest; extra arguments pass through").set_defaults(
+        handler=_test
+    )
     return parser
 
 

@@ -25,9 +25,14 @@ rule:
     - has:
         field: function
         kind: attribute
-        has:
-          field: attribute
-          regex: "^(debug|info|warning|error|exception|critical)$"
+        all:
+          - has:
+              field: attribute
+              regex: "^(debug|info|warning|error|exception|critical)$"
+          # Only loggers: log, logger, self._log, ...; not parser.error() and the like.
+          - has:
+              field: object
+              regex: "(^|[._])(log|logger)$"
     - has:
         field: arguments
         has:

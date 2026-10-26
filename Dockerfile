@@ -13,7 +13,9 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-editable
 
 FROM python:3.15-slim
-RUN useradd --system --uid 10001 --no-create-home app
+# pip isn't needed at runtime, and its bundled libraries are a recurring source of CVEs.
+RUN python -m pip uninstall --yes --quiet pip \
+    && useradd --system --uid 10001 --no-create-home app
 COPY --from=build --chown=app:app /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
