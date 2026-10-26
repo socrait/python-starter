@@ -1,4 +1,5 @@
-# Install once: `uv run pre-commit install`. Hooks run the project's own pinned tools via uv.
+# Install once: `uv run pre-commit install`. Local hooks run the project's own locked tools
+# (`uv run --locked` never rewrites uv.lock; the uv-lock hook is the one lock check).
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -27,7 +28,12 @@ repos:
       - id: check-jsonschema
         name: check ast-grep rules
         files: ^rules/.*\.ya?ml$
-        args: [--schemafile, https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/rule.json]
+        args: [--schemafile, https://raw.githubusercontent.com/ast-grep/ast-grep/0.51.0/schemas/rule.json]
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.31.1
+    hooks:
+      - id: zizmor
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
@@ -43,35 +49,35 @@ repos:
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: uv run ruff check --fix
+        entry: uv run --locked ruff check --fix
         language: system
         types: [python]
       - id: ruff-format
         name: ruff format
-        entry: uv run ruff format
+        entry: uv run --locked ruff format
         language: system
         types: [python]
       - id: ty
         name: ty check
-        entry: uv run ty check
+        entry: uv run --locked ty check
         language: system
         types: [python]
         pass_filenames: false
       - id: ast-grep
         name: ast-grep rules
-        entry: uv run ast-grep scan
+        entry: uv run --locked ast-grep scan
         language: system
         types: [python]
         pass_filenames: false
       - id: ast-grep-rule-tests
         name: ast-grep rule tests
-        entry: uv run ast-grep test --skip-snapshot-tests
+        entry: uv run --locked ast-grep test --skip-snapshot-tests
         language: system
         files: ^(rules|rule-tests)/
         pass_filenames: false
       - id: migration-drift
         name: models match migrations
-        entry: uv run pytest -q tests/data/test_migrations.py
+        entry: uv run --locked pytest -q tests/data/test_migrations.py
         language: system
         files: ^src/starter_app/data/(records\.py|migrations/)
         pass_filenames: false

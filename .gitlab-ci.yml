@@ -2,13 +2,15 @@
 stages: [check, test, build]
 
 default:
-  image: ghcr.io/astral-sh/uv:0.13-trixie-slim
+  # uv with Python preinstalled; jobs use the image's interpreter instead of downloading one.
+  image: ghcr.io/astral-sh/uv:0.13.5-python$PYTHON_VERSION-trixie-slim
   interruptible: true
 
 variables:
+  PYTHON_VERSION: "3.15"
   UV_CACHE_DIR: .uv-cache
   UV_LINK_MODE: copy
-  PYTHON_VERSION: "3.15"
+  UV_PYTHON_DOWNLOADS: never
 
 .uv:
   cache:
@@ -16,7 +18,7 @@ variables:
       files: [uv.lock]
     paths: [.uv-cache]
   before_script:
-    - uv sync --locked --python "$PYTHON_VERSION"
+    - uv sync --locked
   after_script:
     - uv cache prune --ci
 
@@ -53,7 +55,7 @@ rules:
 secrets:
   stage: check
   image:
-    name: ghcr.io/gitleaks/gitleaks:v8.30.1
+    name: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
     entrypoint: [""]
   variables:
     GIT_DEPTH: 0
@@ -68,7 +70,7 @@ test:
       - PYTHON_VERSION: ["3.14", "3.15"]
   # begin: postgres-only
   services:
-    - name: postgres:18
+    - name: postgres:18@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
       alias: postgres
   variables:
     POSTGRES_USER: app
@@ -87,8 +89,8 @@ test:
 
 build-image:
   stage: build
-  image: docker:29
-  services: [docker:29-dind]
+  image: docker:29@sha256:9e79b879b177fbd72c34376a3dd3d91747da5db49e1f560f76aea59561471977
+  services: [docker:29-dind@sha256:9e79b879b177fbd72c34376a3dd3d91747da5db49e1f560f76aea59561471977]
   variables:
     DOCKER_TLS_CERTDIR: /certs
   script:
@@ -102,7 +104,7 @@ scan-image:
   stage: build
   needs: [build-image]
   image:
-    name: aquasec/trivy:0.76.1
+    name: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
     entrypoint: [""]
   script:
     - trivy image --input image.tar --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1

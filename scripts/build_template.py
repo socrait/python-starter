@@ -46,6 +46,7 @@ EXCLUDED = (
     "copier.yml",
     "scripts/build_template.py",
     "scripts/check_generated.py",
+    "scripts/check_update.py",
     ".github/workflows/template.yml",
     ".github/workflows/release.yml",
     "docs/guides/guide-maintaining-the-template.md",
