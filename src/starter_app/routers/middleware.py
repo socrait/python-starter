@@ -1,10 +1,14 @@
 import time
+from http import HTTPStatus
 
 import structlog
 from asgi_correlation_id import correlation_id
+from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from starter_app.core.exceptions import ErrorCode
 from starter_app.logger import get_logger
+from starter_app.routers.error_handlers import error_response
 
 logger = get_logger(__name__)
 
@@ -70,3 +74,26 @@ class NoCacheMiddleware:
             await send(message)
 
         await self._app(scope, receive, _send)
+
+
+class DeclaredBodyLimitMiddleware:
+    """Answers 413 in the app's error shape when a request declares an oversized body.
+
+    Starlette's RequestBodyLimitMiddleware enforces the same limit on streamed bodies, but
+    answers a too-large Content-Length in plain text; this check runs first.
+    """
+
+    def __init__(self, app: ASGIApp, *, max_body_size: int):
+        self._app = app
+        self._max_body_size = max_body_size
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            declared = Headers(scope=scope).get("content-length", "")
+            if declared.isdigit() and int(declared) > self._max_body_size:
+                response = error_response(
+                    HTTPStatus.CONTENT_TOO_LARGE, ErrorCode.REQUEST_TOO_LARGE, "Content Too Large"
+                )
+                await response(scope, receive, send)
+                return
+        await self._app(scope, receive, send)

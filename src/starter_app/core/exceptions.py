@@ -7,6 +7,7 @@ class ErrorCode(StrEnum):
     SERVICE_UNAVAILABLE = "service_unavailable"
     VALIDATION_ERROR = "validation_error"
     HTTP_ERROR = "http_error"
+    REQUEST_TOO_LARGE = "request_too_large"
     NOT_FOUND = "not_found"
     METHOD_NOT_ALLOWED = "method_not_allowed"
     UNAUTHENTICATED = "unauthenticated"
@@ -43,6 +44,11 @@ class AuthenticationError(AppError):
     code = ErrorCode.UNAUTHENTICATED
     status_code = HTTPStatus.UNAUTHORIZED
     public_message = "Authentication required"
+
+    def __init__(self, message: str, *, challenge: str):
+        super().__init__(message)
+        # The auth scheme the client should use, sent back as WWW-Authenticate.
+        self.challenge = challenge
 
 
 class PermissionDeniedError(AppError):

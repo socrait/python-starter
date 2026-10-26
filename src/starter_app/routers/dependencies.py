@@ -1,7 +1,8 @@
 from collections.abc import Callable, Iterator
 from typing import Annotated
 
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Header, Request, Security
+from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
 from starter_app.clients import Authenticator
@@ -44,15 +45,24 @@ def get_project_orchestrator(
 ProjectOrchestratorDep = Annotated[ProjectOrchestrator, Depends(get_project_orchestrator)]
 
 
+# Documents the credential in OpenAPI (the Authorize button in /docs). The Authenticator
+# does the real work from the headers; when you plug in token auth, switch this to
+# HTTPBearer(auto_error=False).
+_credential_scheme = APIKeyHeader(
+    name="X-User-Id", scheme_name="DevUserId", auto_error=False, description="Local only"
+)
+
+
 def get_actor(
     request: Request,
     identity: IdentityOrchestratorDep,
+    _credential: Annotated[str | None, Security(_credential_scheme)],
     x_org_id: Annotated[str | None, Header()] = None,
 ) -> Actor:
     authenticator: Authenticator = request.app.state.authenticator
     user_id = authenticator.authenticate(request.headers)
     if user_id is None:
-        raise AuthenticationError("No valid credentials")
+        raise AuthenticationError("No valid credentials", challenge=authenticator.scheme)
     return identity.resolve_actor(user_id, org_id=x_org_id)
 
 

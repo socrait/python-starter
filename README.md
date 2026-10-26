@@ -97,6 +97,8 @@ and its default is in [config.py](src/starter_app/config.py). The ones you'll se
 | `STARTER_APP_LOG_FORMAT` | text locally, JSON when deployed | |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | OTLP/HTTP collector, e.g. `http://localhost:4318`; the standard OpenTelemetry variables apply |
 | `STARTER_APP_CORS_ALLOWED_ORIGINS` | `[]` | JSON list of origins |
+| `STARTER_APP_FORWARDED_ALLOW_IPS` | unset (127.0.0.1) | proxies trusted to set `X-Forwarded-*`; set behind a load balancer |
+| `STARTER_APP_MAX_REQUEST_BODY_BYTES` | `1048576` | larger request bodies get a 413 |
 
 ## Tests
 
@@ -144,6 +146,8 @@ Before the first deploy:
 <!-- end: postgres-only -->
 - **Schema.** Create a new database with `app db create`; upgrade existing ones with
   `app db migrate`.
+- **Proxies.** Behind a load balancer, set `STARTER_APP_FORWARDED_ALLOW_IPS` to its address
+  range so client addresses and the request scheme come through.
 - **Probes.** `/health` answers while the process is up; `/ready` also checks the database.
 - **Metrics.** Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export to an OpenTelemetry collector.
 

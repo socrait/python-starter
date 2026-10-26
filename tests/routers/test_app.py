@@ -91,3 +91,38 @@ def test_deployed_app_refuses_dev_auth():
                 dev_auth_enabled=False,
             )
         )
+
+
+def test_wrong_method_keeps_the_allow_header(client: TestClient):
+    response = client.put("/health")
+
+    assert response.status_code == 405
+    assert response.headers["allow"] == "GET"
+    assert response.json()["code"] == "method_not_allowed"
+
+
+def test_oversized_bodies_are_rejected(
+    settings: Settings, engine: Engine, auth_headers: HeadersFor, sample_member: Actor
+):
+    app = make_app(settings.model_copy(update={"max_request_body_bytes": 64}), engine=engine)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/projects", headers=auth_headers(sample_member), json={"name": "x" * 100}
+        )
+
+    assert response.status_code == 413
+    assert response.json()["code"] == "request_too_large"
+
+
+def test_unauthenticated_requests_get_a_challenge(client: TestClient):
+    response = client.get("/me")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "APIKey"
+
+
+def test_openapi_documents_the_credential(client: TestClient):
+    schema = client.get("/openapi.json").json()
+
+    assert "DevUserId" in schema["components"]["securitySchemes"]

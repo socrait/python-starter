@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.sdk.metrics import MeterProvider
 from sqlalchemy import Engine
+from starlette.middleware.body_limit import RequestBodyLimitMiddleware
 
 from starter_app.clients import Authenticator, DevHeaderAuthenticator
 from starter_app.config import Settings, get_settings
@@ -15,7 +16,11 @@ from starter_app.logger import configure_logging_from_settings, get_logger
 from starter_app.metrics import AppMetrics, make_meter_provider_from_settings
 from starter_app.routers import health_router, me_router, projects_router
 from starter_app.routers.error_handlers import register_error_handlers
-from starter_app.routers.middleware import AccessLogMiddleware, NoCacheMiddleware
+from starter_app.routers.middleware import (
+    AccessLogMiddleware,
+    DeclaredBodyLimitMiddleware,
+    NoCacheMiddleware,
+)
 
 logger = get_logger(__name__)
 
@@ -82,6 +87,8 @@ def make_app(
     app.include_router(projects_router.router)
 
     # Added innermost first: the request id is assigned before anything logs.
+    app.add_middleware(RequestBodyLimitMiddleware, max_body_size=settings.max_request_body_bytes)
+    app.add_middleware(DeclaredBodyLimitMiddleware, max_body_size=settings.max_request_body_bytes)
     app.add_middleware(NoCacheMiddleware)
     app.add_middleware(AccessLogMiddleware)
     if settings.cors_allowed_origins:

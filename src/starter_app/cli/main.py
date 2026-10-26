@@ -104,6 +104,7 @@ def _serve(args: argparse.Namespace, settings: Settings) -> int:
         log_config=None,
         access_log=False,
         timeout_graceful_shutdown=settings.graceful_shutdown_timeout_seconds,
+        forwarded_allow_ips=settings.forwarded_allow_ips,
     )
     return 0
 
