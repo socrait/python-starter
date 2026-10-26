@@ -92,7 +92,7 @@ and its default is in [config.py](src/starter_app/config.py). The ones you'll se
 
 | Variable | Default | Notes |
 |---|---|---|
-| `STARTER_APP_ENVIRONMENT` | `local` | `local`, `test`, `staging`, `production` |
+| `STARTER_APP_ENVIRONMENT` | `local` | `local`, `test`, `preview`, `production` |
 | `STARTER_APP_DATABASE_URL` | `sqlite:///./starter_app.db` | any SQLAlchemy URL |
 | `STARTER_APP_LOG_FORMAT` | text locally, JSON when deployed | |
 | `STARTER_APP_OTLP_ENDPOINT` | unset | OTLP/HTTP collector, e.g. `http://localhost:4318` |

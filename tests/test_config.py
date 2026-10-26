@@ -28,4 +28,4 @@ def test_deployed_defaults_favor_safety():
 
 def test_dev_auth_cannot_be_forced_on_when_deployed():
     with pytest.raises(ValidationError, match="dev_auth_enabled"):
-        _settings(environment=Environment.STAGING, dev_auth_enabled=True)
+        _settings(environment=Environment.PREVIEW, dev_auth_enabled=True)

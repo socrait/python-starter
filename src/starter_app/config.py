@@ -10,12 +10,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Environment(StrEnum):
     LOCAL = "local"
     TEST = "test"
-    STAGING = "staging"
+    PREVIEW = "preview"
     PRODUCTION = "production"
 
     @property
     def is_deployed(self) -> bool:
-        return self in (Environment.STAGING, Environment.PRODUCTION)
+        return self in (Environment.PREVIEW, Environment.PRODUCTION)
 
 
 class LogFormat(StrEnum):
