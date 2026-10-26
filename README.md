@@ -83,7 +83,7 @@ docs/                  architecture, decisions, guides
 ```
 
 [docs/architecture.md](docs/architecture.md) explains how a request flows through these
-layers; [docs/decisions.md](docs/decisions.md) records why they are shaped this way.
+layers. Cross-cutting decisions and their reasons go in [docs/decisions.md](docs/decisions.md).
 
 ## Configuration
 
