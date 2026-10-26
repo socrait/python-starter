@@ -8,8 +8,8 @@ Guide for coding agents working in this repository. Read
 
 ```bash
 uv sync                                  # install (uv >= 0.13)
-uv run app check                         # everything below, then the full test suite
-uv run app test tests/<path> -x          # targeted tests: run these while iterating
+uv run app check                         # lint, typecheck, rules, then the whole suite
+uv run app test tests/<path> -x          # targeted tests while iterating; flags go to pytest
 uv run app lint                          # ruff check + format check (`app fmt` fixes)
 uv run app typecheck                     # ty
 uv run app rules                         # ast-grep architecture rules
@@ -18,7 +18,8 @@ uv run app db revision -m "add x"        # after changing data/records.py; revie
 uv run app serve --reload                # local server; `app seed` prints test user ids
 ```
 
-A change is done when `uv run app check` passes.
+A change is done when `uv run app check` and `uv run pre-commit run --all-files` pass
+(pre-commit adds YAML and schema checks for CI, compose, and Renovate files).
 
 ## Layers
 
@@ -38,6 +39,8 @@ exceptions) imported by all and importing none. A layer calls only layers below 
   (`logger.py`, `metrics.py`).
 - Object graphs are built in `dependencies.py` (framework-free) and wired to FastAPI in
   `routers/dependencies.py`. Constructors only store their dependencies.
+- Settings are fields on `Settings` in `config.py`, read from `STARTER_APP_*` variables;
+  secrets are `SecretStr`. Operational commands go in `cli/main.py`.
 
 ## Data access and tenancy
 
@@ -50,7 +53,8 @@ exceptions) imported by all and importing none. A layer calls only layers below 
   the actor's org before use, in one query, not one per id.
 - State transitions put the precondition in the `UPDATE ... WHERE` and use `.returning()`;
   never load, check, assign, commit.
-- SQLAlchemy 2.0 style only. Datetimes are timezone-aware UTC (naive ones raise).
+- SQLAlchemy 2.x style: `session.execute(select(...))`, never `session.query(...)`.
+  Datetimes are timezone-aware UTC (naive ones raise).
 - New tables: `TimestampedRecord` or `SoftDeletedRecord`, ids from `genpk(IdPrefix.X)`,
   enums via `string_enum(...)`. Then `app db revision`, read the migration, and keep
   `tests/data/test_migrations.py` passing.
@@ -80,7 +84,8 @@ exceptions) imported by all and importing none. A layer calls only layers below 
 ## Tests
 
 - Tests mirror `src/`. Shared fixtures live in `tests/conftest.py` and modules under
-  `tests/fixtures/` loaded by `pytest_plugins`; never import fixtures.
+  `tests/fixtures/` loaded by `pytest_plugins`. Tests may import types and helpers from
+  those modules (factory Protocols, `counter_points`), never fixtures.
 - `make_*` factories create one record variant; `sample_*` fixtures are ready-made graphs.
   Add a factory parameter for a variant instead of mutating a `sample_*` record.
 - Tests use the `session` fixture: its work is rolled back afterwards, commits included.
@@ -88,6 +93,8 @@ exceptions) imported by all and importing none. A layer calls only layers below 
 - Business rules are tested at the orchestrator; routers test the HTTP contract (status,
   shape, error code). Cover the other-owner and other-org cases for every scoped read.
 - Mock only at the network boundary.
+- The suite runs on in-memory SQLite. `STARTER_APP_TEST_DATABASE_URL` points it at another
+  database.
 
 ## Rules and suppressions
 
@@ -101,3 +108,19 @@ When a rule is wrong for one statement, suppress that rule only, with a reason:
 
 Unnamed or mismatched suppressions are ignored. When a rule is wrong in general, fix the
 rule and its tests rather than suppressing it repeatedly.
+<!-- begin: template-repo-only -->
+
+## This repository is also a Copier template
+
+New projects are generated from this code by [scripts/build_template.py](scripts/build_template.py),
+which renames `starter_app` / `starter-app` / `STARTER_APP` and turns marker comments into
+conditionals. Treat these lines as code:
+
+- `begin: postgres-only` / `end: postgres-only` (and `sqlite-only`): kept only for that
+  database answer. `template-repo-only`: never reaches generated projects.
+- Markers are whole comment lines (`#` or `<!-- -->`); put them where removing the block
+  leaves valid, formatted code, and keep them out of import blocks.
+
+After changing anything a generated project receives, build and check a variant as in
+[the template guide](docs/guides/guide-maintaining-the-template.md#making-a-change).
+<!-- end: template-repo-only -->
