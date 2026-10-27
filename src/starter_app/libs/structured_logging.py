@@ -1,0 +1,135 @@
+"""structlog setup that also routes standard-library logging (uvicorn, SQLAlchemy, Alembic).
+
+App-agnostic: imports nothing from the application. The app binds its settings in
+`starter_app.logger`.
+"""
+
+import logging
+import logging.config
+import socket
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from threading import Lock
+from typing import Any, Literal
+
+import orjson
+import structlog
+from structlog.typing import EventDict, Processor, WrappedLogger
+
+# Libraries whose own loggers are noisy below WARNING.
+DEFAULT_VENDOR_LOGGERS = (
+    "alembic",
+    "asyncio",
+    "httpcore",
+    "httpx",
+    "httpx2",
+    "sqlalchemy.engine",
+    "urllib3",
+    "uvicorn",
+)
+
+
+@dataclass(frozen=True)
+class LogConfig:
+    app_name: str
+    environment: str
+    level: int = logging.INFO
+    vendor_level: int = logging.WARNING
+    format: Literal["text", "json"] = "text"
+    # "severity" for Google Cloud Logging, for example.
+    level_key: str = "level"
+    vendor_levels: Mapping[str, int] = field(default_factory=dict)
+
+
+_configure_lock = Lock()
+
+
+def configure_logging(config: LogConfig) -> None:
+    """Configure structlog and the standard-library root logger, once at startup.
+
+    A later call applies to loggers first used after it; structlog caches loggers already
+    in use with the configuration they started with.
+    """
+    with _configure_lock:
+        _configure(config)
+
+
+def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
+    return structlog.stdlib.get_logger(name)
+
+
+def _configure(config: LogConfig) -> None:
+    hostname = socket.gethostname()
+
+    def add_static_fields(_logger: WrappedLogger, _method: str, event_dict: EventDict) -> EventDict:
+        event_dict.setdefault("app", config.app_name)
+        event_dict.setdefault("env", config.environment)
+        event_dict.setdefault("host", hostname)
+        return event_dict
+
+    def rename_level(_logger: WrappedLogger, _method: str, event_dict: EventDict) -> EventDict:
+        if config.level_key != "level" and "level" in event_dict:
+            event_dict[config.level_key] = event_dict.pop("level").upper()
+        return event_dict
+
+    shared: list[Processor] = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.ExtraAdder(),
+        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.UnicodeDecoder(),
+    ]
+    if config.format == "json":
+        shared.append(add_static_fields)
+
+    renderer: Processor
+    if config.format == "json":
+        renderer = structlog.processors.JSONRenderer(serializer=_orjson_dumps)
+        # Tracebacks as data, without local variables: those can hold secrets and personal data.
+        tracebacks = structlog.processors.ExceptionRenderer(
+            structlog.tracebacks.ExceptionDictTransformer(show_locals=False)
+        )
+        final: list[Processor] = [tracebacks, rename_level, renderer]
+    else:
+        renderer = structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback)
+        final = [renderer]
+
+    formatter: dict[str, Any] = {
+        "()": structlog.stdlib.ProcessorFormatter,
+        "foreign_pre_chain": shared,
+        "processors": [structlog.stdlib.ProcessorFormatter.remove_processors_meta, *final],
+    }
+    vendor_levels = {name: config.vendor_level for name in DEFAULT_VENDOR_LOGGERS}
+    vendor_levels.update(config.vendor_levels)
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {"structlog": formatter},
+            "handlers": {
+                "default": {"class": "logging.StreamHandler", "formatter": "structlog"},
+            },
+            "root": {"handlers": ["default"], "level": config.level},
+            "loggers": {
+                name: {"level": level, "handlers": ["default"], "propagate": False}
+                for name, level in vendor_levels.items()
+            },
+        }
+    )
+
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            *shared,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+
+def _orjson_dumps(value: Any, **_kwargs: Any) -> str:
+    return orjson.dumps(value, default=str).decode()

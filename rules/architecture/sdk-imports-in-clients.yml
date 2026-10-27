@@ -1,0 +1,31 @@
+# Third-party service SDKs live behind a client wrapper that translates their types and errors
+# into domain ones. Extend the list as you add integrations.
+id: sdk-imports-in-clients
+language: Python
+severity: error
+message: Import service SDKs only in clients/; depend on the client's interface elsewhere.
+files:
+  - "src/**/*.py"
+ignores:
+  - "src/*/clients/**/*.py"
+utils:
+  # `# sg-ignore(sdk-imports-in-clients): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(sdk-imports-in-clients\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(sdk-imports-in-clients\\):"
+rule:
+  all:
+    - any:
+        - kind: import_from_statement
+        - kind: import_statement
+    - regex: "^(from|import) (httpx|requests|boto3|botocore|openai|anthropic|stripe|google\\.cloud|redis)\\b"
+    - not:
+        matches: suppressed

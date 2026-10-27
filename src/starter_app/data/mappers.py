@@ -1,0 +1,39 @@
+from starter_app.core.models import Org, Project, Task, User
+from starter_app.data.records import OrgRecord, ProjectRecord, TaskRecord, UserRecord
+
+
+def map_org_to_model(record: OrgRecord) -> Org:
+    return Org(id=record.id, name=record.name, created_at=record.created_at)
+
+
+def map_user_to_model(record: UserRecord) -> User:
+    return User(
+        id=record.id,
+        email=record.email,
+        display_name=record.display_name,
+        created_at=record.created_at,
+    )
+
+
+def map_project_to_model(record: ProjectRecord) -> Project:
+    return Project(
+        id=record.id,
+        org_id=record.org_id,
+        owner_id=record.owner_id,
+        name=record.name,
+        description=record.description,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
+def map_task_to_model(record: TaskRecord) -> Task:
+    return Task(
+        id=record.id,
+        project_id=record.project_id,
+        title=record.title,
+        status=record.status,
+        assignee_ids=sorted(a.user_id for a in record.assignees),
+        created_at=record.created_at,
+        completed_at=record.completed_at,
+    )

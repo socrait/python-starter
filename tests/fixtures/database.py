@@ -1,0 +1,110 @@
+import os
+from collections.abc import Iterator
+
+import pytest
+import sqlalchemy as sa
+from sqlalchemy.orm import Session
+
+from starter_app.config import Environment, Settings
+from starter_app.data.database import DANGER_drop_schema, create_schema, make_engine
+from starter_app.data.records import BaseRecord
+from starter_app.data.unit_of_work import UnitOfWork
+
+# Overrides the test database, which is otherwise SQLite in memory.
+TEST_DATABASE_URL_ENV = "STARTER_APP_TEST_DATABASE_URL"
+
+
+# begin: postgres-only
+def _worker_database_url(url: str, worker_id: str) -> str:
+    """For a Postgres URL, a database of this pytest-xdist worker's own, created if needed."""
+    parsed = sa.make_url(url)
+    if parsed.get_backend_name() != "postgresql":
+        return url
+    name = f"{parsed.database}_{worker_id}"
+    admin = sa.create_engine(parsed.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    with admin.connect() as connection:
+        exists = connection.scalar(
+            sa.text("SELECT 1 FROM pg_database WHERE datname = :name"), {"name": name}
+        )
+        if not exists:
+            connection.execute(sa.text(f'CREATE DATABASE "{name}"'))
+    admin.dispose()
+    return parsed.set(database=name).render_as_string(hide_password=False)
+
+
+# end: postgres-only
+
+
+@pytest.fixture(scope="session")
+def settings() -> Settings:
+    return Settings(
+        _env_file=None,
+        environment=Environment.TEST,
+        database_url=os.environ.get(TEST_DATABASE_URL_ENV, "sqlite://"),
+    )
+
+
+@pytest.fixture(scope="session")
+def engine(settings: Settings, worker_id: str) -> Iterator[sa.Engine]:
+    url = settings.database_url.get_secret_value()
+    # begin: postgres-only
+    url = _worker_database_url(url, worker_id)
+    # end: postgres-only
+    engine = make_engine(settings, url=url)
+    DANGER_drop_schema(engine)
+    create_schema(engine)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def empty_engine(settings: Settings, worker_id: str) -> Iterator[sa.Engine]:
+    """A database with no tables, for tests that build the schema themselves."""
+    url = settings.database_url.get_secret_value()
+    # begin: postgres-only
+    url = _worker_database_url(url, f"{worker_id}_empty")
+    # end: postgres-only
+    engine = make_engine(settings, url=url)
+    DANGER_drop_schema(engine)
+    yield engine
+    DANGER_drop_schema(engine)
+    engine.dispose()
+
+
+@pytest.fixture
+def session(engine: sa.Engine) -> Iterator[Session]:
+    """A session whose work is rolled back after the test, commits included.
+
+    The session runs inside an outer transaction on its own connection; its commits only
+    release SAVEPOINTs, so the unit of work behaves exactly as in production.
+    """
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = Session(
+        bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False
+    )
+    try:
+        yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()
+        _assert_no_leftover_rows(engine)
+
+
+@pytest.fixture
+def uow(session: Session) -> UnitOfWork:
+    return UnitOfWork(session)
+
+
+def _assert_no_leftover_rows(engine: sa.Engine) -> None:
+    # A test that commits outside the fixture's session leaks rows into every later test.
+    with engine.connect() as connection:
+        leftovers = {
+            table.name: count
+            for table in BaseRecord.metadata.sorted_tables
+            if (count := connection.scalar(sa.select(sa.func.count()).select_from(table)))
+        }
+    assert not leftovers, (
+        f"Rows outlived the test (commit outside the session fixture?): {leftovers}"
+    )

@@ -1,0 +1,51 @@
+# Tags a release: builds template/ from main, commits it on a commit only the tag points
+# to, and pushes the tag. `copier copy gh:<owner>/<repo>` uses the newest tag.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to tag, e.g. v0.2.0
+        required: true
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check the version format
+        env:
+          VERSION: ${{ inputs.version }}
+        run: '[[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Use vMAJOR.MINOR.PATCH"; exit 1; }'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          # The tag push below uses this job's token.
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+          # No cache in a job that can write to the repository: a cache written by a
+          # pull request run must not reach it.
+          enable-cache: false
+      - run: uv sync --locked
+      - run: uv run python scripts/build_template.py .
+      - name: Commit the template and tag it
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --force template
+          git commit --quiet -m "Release $VERSION"
+          git tag "$VERSION"
+          git push origin "refs/tags/$VERSION"
+      - name: Publish release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: gh release create "$VERSION" --verify-tag --generate-notes

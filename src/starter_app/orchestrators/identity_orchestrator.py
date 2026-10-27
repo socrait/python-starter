@@ -1,0 +1,82 @@
+from collections.abc import Collection
+
+from starter_app.core.exceptions import (
+    NoOrgAccessError,
+    OrgNotFoundError,
+    OrgSelectionRequiredError,
+)
+from starter_app.core.models import Actor, Org, Profile, Role, User
+from starter_app.data.mappers import map_org_to_model, map_user_to_model
+from starter_app.data.repositories import MembershipRepository, OrgRepository, UserRepository
+from starter_app.data.unit_of_work import UnitOfWork
+from starter_app.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class IdentityOrchestrator:
+    """Orgs, users, and memberships: who may act where. The bottom of the subsystem order."""
+
+    def __init__(
+        self,
+        uow: UnitOfWork,
+        orgs: OrgRepository,
+        users: UserRepository,
+        memberships: MembershipRepository,
+    ):
+        self._uow = uow
+        self._orgs = orgs
+        self._users = users
+        self._memberships = memberships
+
+    def resolve_actor(self, user_id: str, *, org_id: str | None) -> Actor:
+        """Build the actor for an authenticated user in the org they selected.
+
+        Raises NoOrgAccessError if the user belongs to no org, OrgSelectionRequiredError
+        if they belong to several and chose none, and OrgNotFoundError if they chose an
+        org they don't belong to.
+        """
+        with self._uow.transaction():
+            memberships = self._memberships.list_memberships_for_user(user_id)
+        if not memberships:
+            raise NoOrgAccessError(user_id)
+        if org_id is None:
+            if len(memberships) > 1:
+                raise OrgSelectionRequiredError(f"User {user_id} has {len(memberships)} orgs")
+            membership = memberships[0]
+        else:
+            membership = next((m for m in memberships if m.org_id == org_id), None)
+            if membership is None:
+                raise OrgNotFoundError(org_id)
+        return Actor(user_id=user_id, org_id=membership.org_id, role=membership.role)
+
+    def get_profile(self, actor: Actor) -> Profile:
+        with self._uow.transaction():
+            user = self._users.get_user(actor.user_id)
+            org = self._orgs.get_actor_org(actor)
+        if user is None or org is None:
+            # The actor was resolved from these rows moments ago in the same request.
+            raise RuntimeError(f"Actor {actor.user_id} in {actor.org_id} has no user or org row")
+        return Profile(user=map_user_to_model(user), org=map_org_to_model(org), role=actor.role)
+
+    def find_non_members(self, actor: Actor, user_ids: Collection[str]) -> set[str]:
+        with self._uow.transaction():
+            members = self._memberships.list_member_user_ids(actor, user_ids)
+        return set(user_ids) - members
+
+    def create_org_with_admin(
+        self, *, org_name: str, admin_email: str, admin_display_name: str
+    ) -> tuple[Org, User]:
+        with self._uow.transaction():
+            org = self._orgs.create_org(name=org_name)
+            user = self._users.create_user(email=admin_email, display_name=admin_display_name)
+            self._memberships.create_membership(org_id=org.id, user_id=user.id, role=Role.ADMIN)
+        logger.info("org_created", org_id=org.id, admin_user_id=user.id)
+        return map_org_to_model(org), map_user_to_model(user)
+
+    def add_member(self, actor: Actor, *, email: str, display_name: str, role: Role) -> User:
+        with self._uow.transaction():
+            user = self._users.create_user(email=email, display_name=display_name)
+            self._memberships.create_membership(org_id=actor.org_id, user_id=user.id, role=role)
+        logger.info("member_added", org_id=actor.org_id, user_id=user.id, role=role)
+        return map_user_to_model(user)

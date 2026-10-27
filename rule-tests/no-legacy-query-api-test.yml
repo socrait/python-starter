@@ -1,0 +1,14 @@
+id: no-legacy-query-api
+valid:
+  - session.execute(select(ProjectRecord)).scalars().all()
+  - |
+    # sg-ignore(no-legacy-query-api): reason the rule doesn't apply here
+    rows = session.query(ProjectRecord).all()
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    rows = session.query(ProjectRecord).all()
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    rows = session.query(ProjectRecord).all()
+  - session.query(ProjectRecord).filter(ProjectRecord.id == project_id).first()

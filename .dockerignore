@@ -1,0 +1,17 @@
+.git
+.venv
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+*.db
+.env
+.env.*
+tests
+rule-tests
+docs
+# begin: template-repo-only
+template
+scripts
+# end: template-repo-only

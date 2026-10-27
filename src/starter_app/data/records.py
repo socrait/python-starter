@@ -1,0 +1,151 @@
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
+
+import sqlalchemy as sa
+from sqlalchemy import Dialect, ForeignKey, Index, MetaData, String, TypeDecorator
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from starter_app.core.models import Role, TaskStatus
+from starter_app.utils.ids import IdPrefix, genpk
+
+DB_NAMING_CONVENTION = {
+    "ix": "ix_%(table_name)s_%(column_0_N_name)s",
+    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_N_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+
+def _enum_values(enum_type: type[StrEnum]) -> list[str]:
+    return [member.value for member in enum_type]
+
+
+def string_enum(enum_type: type[StrEnum]) -> sa.Enum:
+    """A StrEnum stored by value in a plain string column, not a database enum type.
+
+    Adding a member then needs no migration, and stored values match the API's.
+    """
+    return sa.Enum(
+        enum_type,
+        native_enum=False,
+        create_constraint=False,
+        length=32,
+        values_callable=_enum_values,
+    )
+
+
+class UtcDateTime(TypeDecorator[datetime]):
+    """Stores aware datetimes as UTC; rejects naive ones instead of guessing their zone."""
+
+    impl = sa.DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            raise ValueError("UtcDateTime requires a timezone-aware datetime")
+        return value.astimezone(UTC)
+
+    def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        # SQLite has no timezone storage and returns naive values, which were stored as UTC.
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+class BaseRecord(DeclarativeBase):
+    metadata = MetaData(naming_convention=DB_NAMING_CONVENTION)
+    type_annotation_map: dict[Any, Any] = {datetime: UtcDateTime(), str: String()}
+
+
+class TimestampedRecord(BaseRecord):
+    __abstract__ = True
+
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow, index=True)
+
+
+class SoftDeletedRecord(TimestampedRecord):
+    __abstract__ = True
+
+    deleted_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class OrgRecord(TimestampedRecord):
+    __tablename__ = "org"
+
+    id: Mapped[str] = mapped_column(primary_key=True, default=lambda: genpk(IdPrefix.ORG))
+    name: Mapped[str]
+
+
+class UserRecord(TimestampedRecord):
+    __tablename__ = "user_account"
+
+    id: Mapped[str] = mapped_column(primary_key=True, default=lambda: genpk(IdPrefix.USER))
+    email: Mapped[str] = mapped_column(unique=True)
+    display_name: Mapped[str]
+
+
+class MembershipRecord(SoftDeletedRecord):
+    __tablename__ = "membership"
+    __table_args__ = (
+        Index(
+            None,
+            "org_id",
+            "user_id",
+            unique=True,
+            postgresql_where=sa.text("deleted_at IS NULL"),
+            sqlite_where=sa.text("deleted_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(primary_key=True, default=lambda: genpk(IdPrefix.MEMBERSHIP))
+    org_id: Mapped[str] = mapped_column(ForeignKey("org.id", ondelete="CASCADE"))
+    user_id: Mapped[str] = mapped_column(ForeignKey("user_account.id", ondelete="CASCADE"))
+    role: Mapped[Role] = mapped_column(string_enum(Role))
+
+
+class ProjectRecord(SoftDeletedRecord):
+    __tablename__ = "project"
+
+    id: Mapped[str] = mapped_column(primary_key=True, default=lambda: genpk(IdPrefix.PROJECT))
+    org_id: Mapped[str] = mapped_column(ForeignKey("org.id", ondelete="CASCADE"), index=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("user_account.id"), index=True)
+    name: Mapped[str]
+    description: Mapped[str] = mapped_column(default="")
+
+
+class TaskRecord(TimestampedRecord):
+    __tablename__ = "task"
+
+    id: Mapped[str] = mapped_column(primary_key=True, default=lambda: genpk(IdPrefix.TASK))
+    org_id: Mapped[str] = mapped_column(ForeignKey("org.id", ondelete="CASCADE"), index=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("project.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str]
+    status: Mapped[TaskStatus] = mapped_column(string_enum(TaskStatus), default=TaskStatus.OPEN)
+    completed_at: Mapped[datetime | None] = mapped_column(default=None)
+
+    # The database deletes assignee rows with their task (ON DELETE CASCADE).
+    assignees: Mapped[list[TaskAssigneeRecord]] = relationship(
+        cascade="all, delete-orphan", passive_deletes=True, lazy="raise"
+    )
+
+
+class TaskAssigneeRecord(BaseRecord):
+    __tablename__ = "task_assignee"
+
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("task.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("user_account.id", ondelete="CASCADE"), primary_key=True, index=True
+    )

@@ -1,0 +1,84 @@
+from collections.abc import Callable, Iterator
+from typing import Annotated
+
+from fastapi import Depends, Header, Request, Security
+from fastapi.security import APIKeyHeader
+from sqlalchemy.orm import Session
+
+from starter_app.clients import Authenticator
+from starter_app.core.exceptions import AuthenticationError, PermissionDeniedError
+from starter_app.core.models import Actor, Permission
+from starter_app.data.unit_of_work import UnitOfWork
+from starter_app.dependencies import make_identity_orchestrator, make_project_orchestrator
+from starter_app.orchestrators import IdentityOrchestrator, ProjectOrchestrator
+
+
+def get_session(request: Request) -> Iterator[Session]:
+    # Provides and closes the session; never commits. Orchestrators own transactions.
+    with request.app.state.session_factory() as session:
+        yield session
+
+
+SessionDep = Annotated[Session, Depends(get_session)]
+
+
+def get_unit_of_work(session: SessionDep) -> UnitOfWork:
+    return UnitOfWork(session)
+
+
+UnitOfWorkDep = Annotated[UnitOfWork, Depends(get_unit_of_work)]
+
+
+def get_identity_orchestrator(session: SessionDep, uow: UnitOfWorkDep) -> IdentityOrchestrator:
+    return make_identity_orchestrator(session, uow)
+
+
+IdentityOrchestratorDep = Annotated[IdentityOrchestrator, Depends(get_identity_orchestrator)]
+
+
+def get_project_orchestrator(
+    request: Request, session: SessionDep, uow: UnitOfWorkDep, identity: IdentityOrchestratorDep
+) -> ProjectOrchestrator:
+    return make_project_orchestrator(session, uow, identity, request.app.state.metrics)
+
+
+ProjectOrchestratorDep = Annotated[ProjectOrchestrator, Depends(get_project_orchestrator)]
+
+
+# Documents the credential in OpenAPI (the Authorize button in /docs). The Authenticator
+# does the real work from the headers; when you plug in token auth, switch this to
+# HTTPBearer(auto_error=False).
+_credential_scheme = APIKeyHeader(
+    name="X-User-Id", scheme_name="DevUserId", auto_error=False, description="Local only"
+)
+
+
+def get_actor(
+    request: Request,
+    identity: IdentityOrchestratorDep,
+    _credential: Annotated[str | None, Security(_credential_scheme)],
+    x_org_id: Annotated[str | None, Header()] = None,
+) -> Actor:
+    authenticator: Authenticator = request.app.state.authenticator
+    user_id = authenticator.authenticate(request.headers)
+    if user_id is None:
+        raise AuthenticationError("No valid credentials", challenge=authenticator.scheme)
+    return identity.resolve_actor(user_id, org_id=x_org_id)
+
+
+ActorDep = Annotated[Actor, Depends(get_actor)]
+
+
+def require_permission(permission: Permission) -> Callable[[Actor], Actor]:
+    """Capability gate: the actor, if their role grants `permission`; 403 otherwise.
+
+    For an endpoint on one resource, also depend on that resource's loader (which 404s
+    when the resource isn't visible), so a hidden resource never answers 403.
+    """
+
+    def _require(actor: ActorDep) -> Actor:
+        if not actor.has_permission(permission):
+            raise PermissionDeniedError(permission)
+        return actor
+
+    return _require

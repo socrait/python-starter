@@ -1,0 +1,37 @@
+from sqlalchemy import ColumnElement, select
+
+from starter_app.core.models import Actor, Role
+from starter_app.data.records import BaseRecord, MembershipRecord, ProjectRecord, TaskRecord
+
+
+class QueryScope:
+    """The rows an actor may see, as a WHERE predicate per record type.
+
+    Every visibility-scoped repository query starts from `QueryScope.from_actor(actor).where(...)`
+    instead of hand-writing tenant filters, so scoping can't be forgotten on one query among many.
+    """
+
+    def __init__(self, actor: Actor):
+        self._actor = actor
+
+    @classmethod
+    def from_actor(cls, actor: Actor) -> QueryScope:
+        return cls(actor)
+
+    def where(self, record_type: type[BaseRecord]) -> ColumnElement[bool]:
+        actor = self._actor
+        if record_type is MembershipRecord:
+            return (MembershipRecord.org_id == actor.org_id) & MembershipRecord.deleted_at.is_(None)
+
+        if record_type is ProjectRecord:
+            predicate = (ProjectRecord.org_id == actor.org_id) & ProjectRecord.deleted_at.is_(None)
+            if actor.role == Role.ADMIN:
+                return predicate
+            return predicate & (ProjectRecord.owner_id == actor.user_id)
+
+        if record_type is TaskRecord:
+            # A task is visible exactly when its project is.
+            visible_projects = select(ProjectRecord.id).where(self.where(ProjectRecord))
+            return (TaskRecord.org_id == actor.org_id) & TaskRecord.project_id.in_(visible_projects)
+
+        raise ValueError(f"{record_type.__name__} is not registered in QueryScope")

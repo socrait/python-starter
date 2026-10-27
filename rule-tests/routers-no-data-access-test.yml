@@ -1,0 +1,17 @@
+id: routers-no-data-access
+valid:
+  - from starter_app.orchestrators import ProjectOrchestrator
+  - from starter_app.data.pagination import PageRequest
+  - |
+    # sg-ignore(routers-no-data-access): reason the rule doesn't apply here
+    from starter_app.data.records import BaseRecord
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    from starter_app.data.records import BaseRecord
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    from starter_app.data.records import BaseRecord
+  - from starter_app.data.repositories import ProjectRepository
+  - from starter_app.data.records import ProjectRecord
+  - from starter_app.data.query_scope import QueryScope

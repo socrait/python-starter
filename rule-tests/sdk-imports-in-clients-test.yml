@@ -1,0 +1,17 @@
+id: sdk-imports-in-clients
+valid:
+  - from starter_app.clients import Authenticator
+  - import httpx2_helpers
+  - |
+    # sg-ignore(sdk-imports-in-clients): reason the rule doesn't apply here
+    import httpx
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    import httpx
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    import httpx
+  - import httpx
+  - from openai import OpenAI
+  - from google.cloud import storage

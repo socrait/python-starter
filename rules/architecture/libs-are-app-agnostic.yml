@@ -1,0 +1,31 @@
+# libs/ holds reusable mechanisms (logging setup, metrics registry). They never import the app;
+# the app binds them in a top-level module (e.g. logger.py binds libs/structured_logging.py).
+id: libs-are-app-agnostic
+language: Python
+severity: error
+message: libs/ must not import application modules; bind the lib from a top-level module instead.
+files:
+  - "src/*/libs/**/*.py"
+utils:
+  # `# sg-ignore(libs-are-app-agnostic): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(libs-are-app-agnostic\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(libs-are-app-agnostic\\):"
+rule:
+  all:
+    - any:
+        - kind: import_from_statement
+        - kind: import_statement
+    - regex: "^(from|import) starter_app\\."
+    - not:
+        regex: "^(from|import) starter_app\\.libs\\b"
+    - not:
+        matches: suppressed
