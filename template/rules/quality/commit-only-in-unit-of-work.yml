@@ -1,0 +1,30 @@
+# Orchestrator entry points own transactions through UnitOfWork. A commit anywhere else splits
+# a business operation into separately committed pieces.
+id: commit-only-in-unit-of-work
+language: Python
+severity: error
+message: Don't commit here; wrap the operation in `with self._uow.transaction():` in the orchestrator.
+files:
+  - "src/**/*.py"
+ignores:
+  - "src/*/data/unit_of_work.py"
+utils:
+  # `# sg-ignore(commit-only-in-unit-of-work): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(commit-only-in-unit-of-work\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(commit-only-in-unit-of-work\\):"
+rule:
+  all:
+    - kind: expression_statement
+    - has:
+        pattern: $SESSION.commit()
+    - not:
+        matches: suppressed

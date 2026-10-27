@@ -1,0 +1,30 @@
+# Visibility predicates are built inside repositories. Outside the data layer, pass the Actor.
+id: query-scope-in-data-layer
+language: Python
+severity: error
+message: Use QueryScope only inside data/; pass the Actor to a repository method instead.
+files:
+  - "src/**/*.py"
+ignores:
+  - "src/*/data/**/*.py"
+utils:
+  # `# sg-ignore(query-scope-in-data-layer): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(query-scope-in-data-layer\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(query-scope-in-data-layer\\):"
+rule:
+  all:
+    - pattern: QueryScope
+    - not:
+        inside:
+          kind: comment
+    - not:
+        matches: suppressed

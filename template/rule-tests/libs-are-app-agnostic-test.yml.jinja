@@ -1,0 +1,17 @@
+{% raw %}id: libs-are-app-agnostic
+valid:
+  - import structlog
+  - from {% endraw %}{{ package_name }}{% raw %}.libs.structured_logging import LogConfig
+  - |
+    # sg-ignore(libs-are-app-agnostic): reason the rule doesn't apply here
+    from {% endraw %}{{ package_name }}{% raw %}.config import Settings
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    from {% endraw %}{{ package_name }}{% raw %}.config import Settings
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    from {% endraw %}{{ package_name }}{% raw %}.config import Settings
+  - from {% endraw %}{{ package_name }}{% raw %}.config import get_settings
+  - import {% endraw %}{{ package_name }}{% raw %}.logger
+{% endraw %}

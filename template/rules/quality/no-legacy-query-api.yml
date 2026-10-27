@@ -1,0 +1,25 @@
+id: no-legacy-query-api
+language: Python
+severity: error
+message: Use SQLAlchemy 2.0 style, `session.execute(select(...))`, not `session.query(...)`.
+files:
+  - "src/**/*.py"
+  - "tests/**/*.py"
+utils:
+  # `# sg-ignore(no-legacy-query-api): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(no-legacy-query-api\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(no-legacy-query-api\\):"
+rule:
+  all:
+    - pattern: $SESSION.query($$$ARGS)
+    - not:
+        matches: suppressed

@@ -1,0 +1,6 @@
+{% raw %}pytest_plugins = [
+    "tests.{% endraw %}{{ package_name }}{% raw %}.fixtures.database",
+    "tests.{% endraw %}{{ package_name }}{% raw %}.fixtures.factories",
+    "tests.{% endraw %}{{ package_name }}{% raw %}.fixtures.metrics",
+]
+{% endraw %}

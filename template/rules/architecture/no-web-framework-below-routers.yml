@@ -1,0 +1,32 @@
+# HTTP stops at the routers. Orchestrators, services, repositories, and clients raise domain
+# errors (core/exceptions.py) and stay usable from the CLI and background jobs.
+id: no-web-framework-below-routers
+language: Python
+severity: error
+message: Only routers (and the app factory) may import FastAPI or Starlette.
+files:
+  - "src/*/orchestrators/**/*.py"
+  - "src/*/services/**/*.py"
+  - "src/*/data/**/*.py"
+  - "src/*/clients/**/*.py"
+utils:
+  # `# sg-ignore(no-web-framework-below-routers): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(no-web-framework-below-routers\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(no-web-framework-below-routers\\):"
+rule:
+  all:
+    - any:
+        - kind: import_from_statement
+        - kind: import_statement
+    - regex: "^(from|import) (fastapi|starlette)\\b"
+    - not:
+        matches: suppressed

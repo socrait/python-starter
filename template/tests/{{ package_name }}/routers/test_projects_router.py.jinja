@@ -1,0 +1,113 @@
+{% raw %}from collections.abc import Callable
+
+from fastapi.testclient import TestClient
+
+from {% endraw %}{{ package_name }}{% raw %}.core.models import Actor
+from {% endraw %}{{ package_name }}{% raw %}.data.records import ProjectRecord
+from tests.{% endraw %}{{ package_name }}{% raw %}.fixtures.factories import ProjectFactory
+
+type HeadersFor = Callable[[Actor], dict[str, str]]
+
+
+def test_requires_authentication(client: TestClient):
+    response = client.get("/projects")
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "unauthenticated"
+
+
+def test_create_project_speaks_camel_case(
+    client: TestClient, auth_headers: HeadersFor, sample_member: Actor, other_member: Actor
+):
+    response = client.post(
+        "/projects",
+        headers=auth_headers(sample_member),
+        json={
+            "name": "Launch",
+            "tasks": [{"title": "Draft", "assigneeIds": [other_member.user_id]}],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["ownerId"] == sample_member.user_id
+    assert "owner_id" not in body
+
+
+def test_get_project_hides_other_owner_and_other_org(
+    client: TestClient,
+    auth_headers: HeadersFor,
+    sample_project: ProjectRecord,
+    other_member: Actor,
+    other_org_admin: Actor,
+):
+    for outsider in (other_member, other_org_admin):
+        response = client.get(f"/projects/{sample_project.id}", headers=auth_headers(outsider))
+        assert response.status_code == 404
+        assert response.json()["code"] == "project_not_found"
+
+
+def test_delete_project_needs_admin(
+    client: TestClient,
+    auth_headers: HeadersFor,
+    sample_project: ProjectRecord,
+    sample_member: Actor,
+    sample_admin: Actor,
+):
+    # The owner can see the project, so the denial is a 403, not a 404.
+    as_owner = client.delete(f"/projects/{sample_project.id}", headers=auth_headers(sample_member))
+    as_admin = client.delete(f"/projects/{sample_project.id}", headers=auth_headers(sample_admin))
+
+    assert as_owner.status_code == 403
+    assert as_admin.status_code == 204
+
+
+def test_list_projects_paginates(
+    client: TestClient, auth_headers: HeadersFor, make_project: ProjectFactory, sample_member: Actor
+):
+    for i in range(3):
+        make_project(sample_member, name=f"p{i}")
+    headers = auth_headers(sample_member)
+
+    first = client.get("/projects", params={"limit": 2}, headers=headers).json()
+    second = client.get(
+        "/projects", params={"limit": 2, "cursor": first["nextCursor"]}, headers=headers
+    ).json()
+
+    assert [p["name"] for p in first["items"] + second["items"]] == ["p2", "p1", "p0"]
+    assert second["nextCursor"] is None
+
+
+def test_invalid_cursor_is_a_client_error(
+    client: TestClient, auth_headers: HeadersFor, sample_member: Actor
+):
+    response = client.get(
+        "/projects", params={"cursor": "%%%"}, headers=auth_headers(sample_member)
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_cursor"
+
+
+def test_create_and_list_tasks(
+    client: TestClient,
+    auth_headers: HeadersFor,
+    sample_project: ProjectRecord,
+    sample_member: Actor,
+):
+    headers = auth_headers(sample_member)
+    tasks_url = f"/projects/{sample_project.id}/tasks"
+
+    created = client.post(
+        tasks_url, headers=headers, json={"title": "Ship", "assigneeIds": [sample_member.user_id]}
+    )
+    completed = client.post(f"{tasks_url}/{created.json()['id']}/complete", headers=headers)
+    listed = client.get(tasks_url, headers=headers)
+    project = client.get(f"/projects/{sample_project.id}", headers=headers)
+
+    assert created.status_code == 201
+    assert created.json()["assigneeIds"] == [sample_member.user_id]
+    assert completed.json()["status"] == "done"
+    assert [t["title"] for t in listed.json()["items"]] == ["Ship"]
+    assert project.json()["name"] == "Launch"
+{% endraw %}

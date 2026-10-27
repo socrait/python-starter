@@ -1,0 +1,109 @@
+{% raw %}# GitLab CI: the same checks as .github/workflows/ci.yml.
+stages: [check, test, build]
+
+default:
+  # uv with Python preinstalled; jobs use the image's interpreter instead of downloading one.
+  image: ghcr.io/astral-sh/uv:0.13.5-python$PYTHON_VERSION-trixie-slim
+  interruptible: true
+
+variables:
+  PYTHON_VERSION: "3.15"
+  UV_CACHE_DIR: .uv-cache
+  UV_LINK_MODE: copy
+  UV_PYTHON_DOWNLOADS: never
+
+.uv:
+  cache:
+    key:
+      files: [uv.lock]
+    paths: [.uv-cache]
+  before_script:
+    - uv sync --locked
+  after_script:
+    - uv cache prune --ci
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+# Independent checks run as parallel jobs, so one failure doesn't hide the others.
+lint:
+  stage: check
+  extends: .uv
+  script: [uv run ruff check]
+
+format:
+  stage: check
+  extends: .uv
+  script: [uv run ruff format --check]
+
+types:
+  stage: check
+  extends: .uv
+  script: [uv run ty check]
+
+rules:
+  stage: check
+  extends: .uv
+  script:
+    - uv run ast-grep test --skip-snapshot-tests
+    - uv run ast-grep scan
+
+secrets:
+  stage: check
+  image:
+    name: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+    entrypoint: [""]
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - gitleaks git --verbose --redact .
+
+test:
+  stage: test
+  extends: .uv
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.14", "3.15"]
+{% endraw %}{% if database == "postgres" %}{% raw %}  services:
+    - name: postgres:18@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
+      alias: postgres
+  variables:
+    POSTGRES_USER: app
+    POSTGRES_PASSWORD: app
+    POSTGRES_DB: app
+    # Postgres in CI catches what SQLite forgives; run SQLite locally for speed.
+    {% endraw %}{{ env_prefix }}{% raw %}_TEST_DATABASE_URL: postgresql+psycopg://app:app@postgres:5432/app_test
+{% endraw %}{% endif %}{% raw %}  script:
+    - uv run pytest -n auto --cov --cov-report=term --junitxml=report.xml
+  coverage: '/^TOTAL.*\s+(\d+(?:\.\d+)?)%/'
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+build-image:
+  stage: build
+  image: docker:29@sha256:9e79b879b177fbd72c34376a3dd3d91747da5db49e1f560f76aea59561471977
+  services: [docker:29-dind@sha256:9e79b879b177fbd72c34376a3dd3d91747da5db49e1f560f76aea59561471977]
+  variables:
+    DOCKER_TLS_CERTDIR: /certs
+  script:
+    - docker build -t {% endraw %}{{ project_name }}{% raw %}:ci .
+    - docker save {% endraw %}{{ project_name }}{% raw %}:ci -o image.tar
+  artifacts:
+    paths: [image.tar]
+    expire_in: 1 hour
+
+scan-image:
+  stage: build
+  needs: [build-image]
+  image:
+    name: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+    entrypoint: [""]
+  script:
+    - trivy image --input image.tar --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1
+{% endraw %}

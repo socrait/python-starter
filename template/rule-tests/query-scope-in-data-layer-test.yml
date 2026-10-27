@@ -1,0 +1,14 @@
+id: query-scope-in-data-layer
+valid:
+  - projects.list_projects(actor, page)
+  - |
+    # sg-ignore(query-scope-in-data-layer): reason the rule doesn't apply here
+    scope = QueryScope.from_actor(actor)
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    scope = QueryScope.from_actor(actor)
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    scope = QueryScope.from_actor(actor)
+  - predicate = QueryScope.from_actor(actor).where(ProjectRecord)

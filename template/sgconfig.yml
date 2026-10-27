@@ -1,0 +1,8 @@
+# ast-grep rules for the architecture and conventions that ruff and the type checker can't see.
+# Run: `uv run app rules` (or `uv run ast-grep scan`); test the rules: `uv run ast-grep test`.
+# Suppress one rule for one statement with `# sg-ignore(<rule-id>): <reason>` on the line above.
+# Suppressions must name the rule, so they never silence more than intended.
+ruleDirs:
+  - rules
+testConfigs:
+  - testDir: rule-tests

@@ -1,0 +1,19 @@
+{% raw %}id: core-is-pure
+valid:
+  - from pydantic import BaseModel
+  - from {% endraw %}{{ package_name }}{% raw %}.core.models import Actor
+  - |
+    # sg-ignore(core-is-pure): reason the rule doesn't apply here
+    from fastapi import status
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    from fastapi import status
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    from fastapi import status
+  - from fastapi import HTTPException
+  - import sqlalchemy as sa
+  - from {% endraw %}{{ package_name }}{% raw %}.data.records import ProjectRecord
+  - from {% endraw %}{{ package_name }}{% raw %}.orchestrators import ProjectOrchestrator
+{% endraw %}

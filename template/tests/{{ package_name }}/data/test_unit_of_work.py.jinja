@@ -1,0 +1,50 @@
+{% raw %}from collections.abc import Callable
+
+import pytest
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from {% endraw %}{{ package_name }}{% raw %}.data.records import OrgRecord
+from {% endraw %}{{ package_name }}{% raw %}.data.unit_of_work import UnitOfWork
+
+
+def _org_count(session: Session) -> int:
+    return session.scalar(select(func.count()).select_from(OrgRecord)) or 0
+
+
+def _fail_inside(uow: UnitOfWork, work: Callable[[], None]) -> None:
+    with uow.transaction():
+        work()
+        raise RuntimeError("boom")
+
+
+def test_commits_outermost_transaction(session: Session, uow: UnitOfWork):
+    with uow.transaction():
+        session.add(OrgRecord(name="kept"))
+
+    session.rollback()  # nothing pending: the add was committed
+    assert _org_count(session) == 1
+
+
+def test_rolls_back_on_exception(session: Session, uow: UnitOfWork):
+    def _add() -> None:
+        session.add(OrgRecord(name="discarded"))
+        session.flush()
+
+    with pytest.raises(RuntimeError):
+        _fail_inside(uow, _add)
+
+    assert _org_count(session) == 0
+
+
+def test_nested_transaction_joins_outer(session: Session, uow: UnitOfWork):
+    def _nested_add() -> None:
+        with uow.transaction():
+            session.add(OrgRecord(name="inner"))
+        # The inner block's exit did not commit, so the outer failure discards it.
+
+    with pytest.raises(RuntimeError):
+        _fail_inside(uow, _nested_add)
+
+    assert _org_count(session) == 0
+{% endraw %}

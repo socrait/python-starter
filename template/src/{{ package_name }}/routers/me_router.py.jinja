@@ -1,0 +1,12 @@
+{% raw %}from fastapi import APIRouter
+
+from {% endraw %}{{ package_name }}{% raw %}.core.models import Profile
+from {% endraw %}{{ package_name }}{% raw %}.routers.dependencies import ActorDep, IdentityOrchestratorDep
+
+router = APIRouter(prefix="/me", tags=["me"])
+
+
+@router.get("")
+def get_me(actor: ActorDep, identity: IdentityOrchestratorDep) -> Profile:
+    return identity.get_profile(actor)
+{% endraw %}

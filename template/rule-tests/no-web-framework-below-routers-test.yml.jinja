@@ -1,0 +1,17 @@
+{% raw %}id: no-web-framework-below-routers
+valid:
+  - from {% endraw %}{{ package_name }}{% raw %}.core.exceptions import ProjectNotFoundError
+  - |
+    # sg-ignore(no-web-framework-below-routers): reason the rule doesn't apply here
+    from fastapi import status
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    from fastapi import status
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    from fastapi import status
+  - from fastapi import HTTPException
+  - from starlette.requests import Request
+  - import fastapi
+{% endraw %}

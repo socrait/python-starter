@@ -1,0 +1,97 @@
+{% raw %}[project]
+name = "{% endraw %}{{ project_name }}{% raw %}"
+version = "0.1.0"
+description = "{% endraw %}{{ description }}{% raw %}"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "alembic>=1.20",
+    "asgi-correlation-id>=5.0",
+    "fastapi>=0.149",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
+    "opentelemetry-sdk>=1.45.1",
+    "orjson>=3.13",
+{% endraw %}{% if database == "postgres" %}{% raw %}    "psycopg[binary]>=3.3",
+{% endraw %}{% endif %}{% raw %}    "pydantic>=2.14",
+    "pydantic-settings>=2.16",
+    "sqlalchemy>=2.1",
+    "structlog>=26.1",
+    "uvicorn>=0.54",
+]
+
+[project.scripts]
+app = "{% endraw %}{{ package_name }}{% raw %}.cli:main"
+
+[dependency-groups]
+dev = [
+    "ast-grep-cli>=0.51",
+    "httpx2>=2.14",
+    "pre-commit>=4.7",
+    "pytest>=9.1",
+    "pytest-cov>=7.1",
+    "pytest-xdist>=3.8",
+    "ruff>=0.17",
+    "ty>=0.0.89",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "{% endraw %}{{ package_name }}{% raw %}"
+
+[tool.uv]
+# Only resolve releases at least a week old: a compromised or broken release is usually
+# yanked within days, before it can reach this lockfile.
+exclude-newer = "P7D"
+required-version = ">=0.13"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# No TC (type-checking-only imports): FastAPI, Pydantic, and SQLAlchemy read annotations at
+# runtime, so moving their imports under TYPE_CHECKING breaks the app.
+select = [
+    "E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ASYNC", "S", "PLC", "N", "DTZ", "PT", "FAST",
+]
+ignore = [
+    "E501",   # the formatter owns line length
+    "RUF012", # mutable class attributes are fine on Pydantic/SQLAlchemy models
+    "FAST003", # path parameters are often read by a loader dependency (ProjectDep), not the route
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106", "PLC2701"]
+"src/{% endraw %}{{ package_name }}{% raw %}/data/migrations/versions/*.py" = ["N999"]
+
+[tool.ty.src]
+include = ["src", "tests", "scripts"]
+
+[tool.ty.rules]
+# Warnings fail the check too: keep the bar the same for every rule ty reports.
+deprecated = "error"
+
+[tool.pytest]
+testpaths = ["tests"]
+# Unknown markers, config keys, and xfail passes are errors.
+strict = true
+addopts = ["-ra"]
+markers = [
+    "external: calls a real external service; skipped unless selected with -m external",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["{% endraw %}{{ package_name }}{% raw %}"]
+branch = true
+omit = ["src/{% endraw %}{{ package_name }}{% raw %}/data/migrations/*"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@abstractmethod"]
+{% endraw %}

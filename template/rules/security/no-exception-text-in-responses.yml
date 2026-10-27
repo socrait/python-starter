@@ -1,0 +1,44 @@
+# Exception text can carry ids, SQL, or personal data. Clients get a static message;
+# the exception goes to the logs.
+id: no-exception-text-in-responses
+language: Python
+severity: error
+message: Don't send exception text to clients; raise an AppError with a static public_message.
+files:
+  - "src/**/*.py"
+utils:
+  # `# sg-ignore(no-exception-text-in-responses): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(no-exception-text-in-responses\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(no-exception-text-in-responses\\):"
+rule:
+  all:
+    - kind: call
+    - has:
+        field: function
+        regex: "HTTPException$"
+    - has:
+        field: arguments
+        has:
+          kind: keyword_argument
+          all:
+            - has:
+                field: name
+                regex: "^detail$"
+            - has:
+                field: value
+                any:
+                  - pattern: str($E)
+                  - pattern: repr($E)
+                  - kind: string
+                    regex: "^[fF]"
+    - not:
+        matches: suppressed

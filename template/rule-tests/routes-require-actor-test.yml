@@ -1,0 +1,34 @@
+id: routes-require-actor
+valid:
+  - |
+    @router.get("")
+    def list_projects(actor: CanViewProjects, page: PageRequestDep) -> Page[Project]:
+        ...
+  - |
+    @router.get("/me")
+    def me(actor: ActorDep) -> Profile:
+        ...
+  - |
+    # sg-ignore(routes-require-actor): reason the rule doesn't apply here
+    @router.get("/health")
+    def health() -> None:
+        ...
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    @router.get("/health")
+    def health() -> None:
+        ...
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    @router.get("/health")
+    def health() -> None:
+        ...
+  - |
+    @router.get("/projects/{project_id}")
+    def get_project(project_id: str, projects: ProjectOrchestratorDep) -> Project:
+        ...
+  - |
+    @router.delete("/projects/{project_id}")
+    def delete_project(project_id: str) -> None:
+        ...
