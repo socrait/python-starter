@@ -30,7 +30,7 @@ Then generate and review the migration:
 
 ```bash
 uv run app db revision -m "add comment"
-uv run app test tests/data/test_migrations.py
+uv run app test tests/starter_app/data/test_migrations.py
 ```
 
 ## 3. Repository and mapper
@@ -61,7 +61,7 @@ permission, add it to `Permission` and `ROLE_PERMISSIONS`.
 
 ## 6. Tests
 
-- Factory: `make_comment` in [tests/fixtures/factories.py](../../tests/fixtures/factories.py),
+- Factory: `make_comment` in [tests/starter_app/fixtures/factories.py](../../tests/starter_app/fixtures/factories.py),
   with a Protocol.
 - Repository: visible to the owner and admin, hidden from another member and another org.
 - Orchestrator: the business rules and every error it raises.

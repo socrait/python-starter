@@ -13,8 +13,8 @@ from starter_app.core.models import Actor, NewProject, NewTask, TaskStatus
 from starter_app.data.pagination import PageRequest
 from starter_app.data.records import ProjectRecord, TaskRecord
 from starter_app.orchestrators import ProjectOrchestrator
-from tests.fixtures.factories import TaskFactory
-from tests.fixtures.metrics import counter_points
+from tests.starter_app.fixtures.factories import TaskFactory
+from tests.starter_app.fixtures.metrics import counter_points
 
 
 def test_create_project_with_tasks(

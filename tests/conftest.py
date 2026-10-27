@@ -1,1 +1,5 @@
-pytest_plugins = ["tests.fixtures.database", "tests.fixtures.factories", "tests.fixtures.metrics"]
+pytest_plugins = [
+    "tests.starter_app.fixtures.database",
+    "tests.starter_app.fixtures.factories",
+    "tests.starter_app.fixtures.metrics",
+]

@@ -4,7 +4,7 @@ from starter_app.core.models import Actor, TaskStatus
 from starter_app.data.pagination import PageRequest
 from starter_app.data.records import ProjectRecord
 from starter_app.data.repositories import TaskRepository
-from tests.fixtures.factories import ProjectFactory, TaskFactory
+from tests.starter_app.fixtures.factories import ProjectFactory, TaskFactory
 
 
 def test_tasks_inherit_project_visibility(

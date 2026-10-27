@@ -4,7 +4,7 @@ from starter_app.core.models import Actor
 from starter_app.data.pagination import PageRequest
 from starter_app.data.records import ProjectRecord
 from starter_app.data.repositories import ProjectRepository
-from tests.fixtures.factories import ProjectFactory
+from tests.starter_app.fixtures.factories import ProjectFactory
 
 
 def test_member_sees_only_own_projects(

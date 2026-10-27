@@ -9,7 +9,7 @@ Guide for coding agents working in this repository. Read
 ```bash
 uv sync                                  # install (uv >= 0.13)
 uv run app check                         # lint, typecheck, rules, then the whole suite
-uv run app test tests/<path> -x          # targeted tests while iterating; flags go to pytest
+uv run app test tests/starter_app/<path> -x   # targeted tests while iterating; flags go to pytest
 uv run app lint                          # ruff check + format check (`app fmt` fixes)
 uv run app typecheck                     # ty
 uv run app rules                         # ast-grep architecture rules
@@ -58,7 +58,7 @@ exceptions) imported by all and importing none. A layer calls only layers below 
   Datetimes are timezone-aware UTC (naive ones raise).
 - New tables: `TimestampedRecord` or `SoftDeletedRecord`, ids from `genpk(IdPrefix.X)`,
   enums via `string_enum(...)`. Then `app db revision`, read the migration, and keep
-  `tests/data/test_migrations.py` passing.
+  `tests/starter_app/data/test_migrations.py` passing.
 
 ## HTTP and security
 
@@ -84,8 +84,10 @@ exceptions) imported by all and importing none. A layer calls only layers below 
 
 ## Tests
 
-- Tests mirror `src/`. Shared fixtures live in `tests/conftest.py` and modules under
-  `tests/fixtures/` loaded by `pytest_plugins`. Tests may import types and helpers from
+- Tests mirror `src/`: `tests/starter_app/` holds the tests for `src/starter_app/`, and each
+  further package gets its own folder. A package's shared fixtures live in modules under
+  `tests/<package>/fixtures/`, loaded by `pytest_plugins` in the root `tests/conftest.py`
+  (pytest reads it nowhere else). Tests may import types and helpers from
   those modules (factory Protocols, `counter_points`), never fixtures.
 - `make_*` factories create one record variant; `sample_*` fixtures are ready-made graphs.
   Add a factory parameter for a variant instead of mutating a `sample_*` record.

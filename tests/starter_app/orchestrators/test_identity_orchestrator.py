@@ -7,7 +7,7 @@ from starter_app.core.exceptions import (
 )
 from starter_app.core.models import Actor, Role
 from starter_app.orchestrators import IdentityOrchestrator
-from tests.fixtures.factories import MemberFactory, OrgFactory
+from tests.starter_app.fixtures.factories import MemberFactory, OrgFactory
 
 
 def test_resolves_the_only_membership(identity: IdentityOrchestrator, sample_member: Actor):

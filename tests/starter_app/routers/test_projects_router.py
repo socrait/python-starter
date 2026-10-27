@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from starter_app.core.models import Actor
 from starter_app.data.records import ProjectRecord
-from tests.fixtures.factories import ProjectFactory
+from tests.starter_app.fixtures.factories import ProjectFactory
 
 type HeadersFor = Callable[[Actor], dict[str, str]]
 

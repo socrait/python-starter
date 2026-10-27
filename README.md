@@ -79,7 +79,7 @@ src/starter_app/
 ├── logger.py, metrics.py   the app's bindings of those libs
 └── utils/
 rules/, rule-tests/    ast-grep rules and their tests
-tests/                 mirrors src/; fixtures live in conftest.py and tests/fixtures/
+tests/starter_app/     mirrors src/starter_app/; fixtures in tests/starter_app/fixtures/
 docs/                  architecture, decisions, guides
 ```
 

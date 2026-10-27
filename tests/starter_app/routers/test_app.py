@@ -10,7 +10,7 @@ from starter_app.core.models import Actor
 from starter_app.libs.metrics import make_meter_provider
 from starter_app.main import make_app
 from starter_app.metrics import make_metrics_config
-from tests.fixtures.metrics import histogram_points
+from tests.starter_app.fixtures.metrics import histogram_points
 
 type HeadersFor = Callable[[Actor], dict[str, str]]
 

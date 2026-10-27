@@ -77,7 +77,7 @@ repos:
         pass_filenames: false
       - id: migration-drift
         name: models match migrations
-        entry: uv run --locked pytest -q tests/data/test_migrations.py
+        entry: uv run --locked pytest -q tests/starter_app/data/test_migrations.py
         language: system
         files: ^src/starter_app/data/(records\.py|migrations/)
         pass_filenames: false
