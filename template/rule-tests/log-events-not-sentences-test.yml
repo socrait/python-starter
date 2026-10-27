@@ -1,0 +1,20 @@
+id: log-events-not-sentences
+valid:
+  - 'parser.error(f"unrecognized arguments: {args}")'
+  - self._log.info("task_created", task_id=task.id)
+  - log.info("project_created", project_id=project.id)
+  - log.debug("cache_miss")
+  - log.info("export_written", path=f"{base}/out.csv")
+  - |
+    # sg-ignore(log-events-not-sentences): reason the rule doesn't apply here
+    log.info(f"legacy message {x}")
+invalid:
+  - self._log.warning(f"slow query took {ms} ms")
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    log.info(f"legacy message {x}")
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    log.info(f"legacy message {x}")
+  - log.info(f"Created project {project.id}")
+  - logger.exception(f"Failed for {user_id}")

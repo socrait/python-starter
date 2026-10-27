@@ -1,0 +1,100 @@
+{% raw %}import time
+from http import HTTPStatus
+
+import structlog
+from asgi_correlation_id import correlation_id
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from {% endraw %}{{ package_name }}{% raw %}.core.exceptions import ErrorCode
+from {% endraw %}{{ package_name }}{% raw %}.logger import get_logger
+from {% endraw %}{{ package_name }}{% raw %}.routers.error_handlers import error_response
+
+logger = get_logger(__name__)
+
+
+class AccessLogMiddleware:
+    """One structured `request_finished` event per HTTP request, carrying the request id.
+
+    Pure ASGI rather than `BaseHTTPMiddleware`, so streaming responses and context
+    variables pass through untouched. Sits inside the request-id middleware.
+    """
+
+    def __init__(self, app: ASGIApp):
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(request_id=correlation_id.get())
+        status_code = 500
+        start = time.perf_counter_ns()
+
+        async def _send(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
+        try:
+            await self._app(scope, receive, _send)
+        finally:
+            logger.info(
+                "request_finished",
+                method=scope["method"],
+                path=scope["path"],
+                status_code=status_code,
+                duration_ms=round((time.perf_counter_ns() - start) / 1_000_000, 2),
+            )
+
+
+class NoCacheMiddleware:
+    """Marks every API response, errors included, as uncacheable by browsers and proxies."""
+
+    def __init__(self, app: ASGIApp):
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        async def _send(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = [
+                    (k, v)
+                    for k, v in message.get("headers", [])
+                    if k.lower() not in (b"cache-control", b"pragma")
+                ]
+                headers += [(b"cache-control", b"no-store"), (b"pragma", b"no-cache")]
+                message["headers"] = headers
+            await send(message)
+
+        await self._app(scope, receive, _send)
+
+
+class DeclaredBodyLimitMiddleware:
+    """Answers 413 in the app's error shape when a request declares an oversized body.
+
+    Starlette's RequestBodyLimitMiddleware enforces the same limit on streamed bodies, but
+    answers a too-large Content-Length in plain text; this check runs first.
+    """
+
+    def __init__(self, app: ASGIApp, *, max_body_size: int):
+        self._app = app
+        self._max_body_size = max_body_size
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            declared = Headers(scope=scope).get("content-length", "")
+            if declared.isdigit() and int(declared) > self._max_body_size:
+                response = error_response(
+                    HTTPStatus.CONTENT_TOO_LARGE, ErrorCode.REQUEST_TOO_LARGE, "Content Too Large"
+                )
+                await response(scope, receive, send)
+                return
+        await self._app(scope, receive, send)
+{% endraw %}

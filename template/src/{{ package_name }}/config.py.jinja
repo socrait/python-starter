@@ -1,0 +1,85 @@
+{% raw %}import logging
+from enum import StrEnum
+from functools import lru_cache
+from typing import Self
+
+from pydantic import Field, SecretStr, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Environment(StrEnum):
+    LOCAL = "local"
+    TEST = "test"
+    PREVIEW = "preview"
+    PRODUCTION = "production"
+
+    @property
+    def is_deployed(self) -> bool:
+        return self in (Environment.PREVIEW, Environment.PRODUCTION)
+
+
+class LogFormat(StrEnum):
+    TEXT = "text"
+    JSON = "json"
+
+
+class LogLevel(StrEnum):
+    DEBUG = "debug"
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+    def to_logging_level(self) -> int:
+        return logging.getLevelNamesMapping()[self.value.upper()]
+
+
+class Settings(BaseSettings):
+    """Process configuration, read from `{% endraw %}{{ env_prefix }}{% raw %}_*` environment variables and `.env`."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="{% endraw %}{{ env_prefix }}{% raw %}_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    app_name: str = "{% endraw %}{{ project_name }}{% raw %}"
+    environment: Environment = Environment.LOCAL
+
+    host: str = "127.0.0.1"
+    port: int = 8000
+    graceful_shutdown_timeout_seconds: int = 10
+    cors_allowed_origins: list[str] = []
+    # Requests with larger bodies get a 413 before any handler reads them.
+    max_request_body_bytes: int = 1024 * 1024
+    # Addresses of the proxies or load balancers trusted to set X-Forwarded-* headers,
+    # comma-separated (a CIDR range works). Unset: uvicorn trusts only 127.0.0.1.
+    forwarded_allow_ips: str | None = None
+
+    database_url: SecretStr = SecretStr("sqlite:///./{% endraw %}{{ package_name }}{% raw %}.db")
+    database_pool_size: int = 5
+    database_max_overflow: int = 10
+
+    log_level: LogLevel = LogLevel.INFO
+    log_level_vendor: LogLevel = LogLevel.WARNING
+    log_format: LogFormat = Field(
+        default_factory=lambda data: (
+            LogFormat.JSON if data["environment"].is_deployed else LogFormat.TEXT
+        )
+    )
+    # The key the log level is written under: "severity" for Google Cloud Logging, for example.
+    log_level_key: str = "level"
+    log_sql: bool = False
+
+    # Header-based authentication for local development and tests. Never valid when deployed.
+    dev_auth_enabled: bool = Field(default_factory=lambda data: not data["environment"].is_deployed)
+    docs_enabled: bool = Field(default_factory=lambda data: not data["environment"].is_deployed)
+
+    @model_validator(mode="after")
+    def _refuse_dev_auth_when_deployed(self) -> Self:
+        if self.environment.is_deployed and self.dev_auth_enabled:
+            raise ValueError("dev_auth_enabled must be false in a deployed environment")
+        return self
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
+{% endraw %}

@@ -1,0 +1,40 @@
+# Every route resolves an Actor (directly or through a permission gate), so it is
+# authenticated and every query it makes is scoped. Public routes opt out explicitly.
+id: routes-require-actor
+language: Python
+severity: error
+message: 'Route has no Actor dependency. Add `actor: ActorDep` or a permission gate like `CanViewProjects`.'
+note: 'For a deliberately public route, put `# sg-ignore(routes-require-actor): <reason>` above the decorator.'
+files:
+  - "src/*/routers/**/*.py"
+utils:
+  # `# sg-ignore(routes-require-actor): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(routes-require-actor\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(routes-require-actor\\):"
+rule:
+  all:
+    - kind: decorated_definition
+    - has:
+        kind: decorator
+        regex: "^@router\\.(get|post|put|patch|delete)\\("
+    - not:
+        has:
+          field: definition
+          has:
+            field: parameters
+            has:
+              kind: typed_parameter
+              has:
+                field: type
+                regex: "^(ActorDep|Can[A-Z]\\w*|Annotated\\[Actor\\b.*)$"
+    - not:
+        matches: suppressed

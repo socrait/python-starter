@@ -1,0 +1,43 @@
+# Log calls name an event and pass fields: log.info("project_created", project_id=...).
+# An f-string bakes the fields into text no log store can query.
+id: log-events-not-sentences
+language: Python
+severity: error
+message: 'Log an event name plus fields, e.g. log.info("project_created", project_id=pid), not an f-string.'
+files:
+  - "src/**/*.py"
+utils:
+  # `# sg-ignore(log-events-not-sentences): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(log-events-not-sentences\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(log-events-not-sentences\\):"
+rule:
+  all:
+    - kind: call
+    - has:
+        field: function
+        kind: attribute
+        all:
+          - has:
+              field: attribute
+              regex: "^(debug|info|warning|error|exception|critical)$"
+          # Only loggers: log, logger, self._log, ...; not parser.error() and the like.
+          - has:
+              field: object
+              regex: "(^|[._])(log|logger)$"
+    - has:
+        field: arguments
+        has:
+          kind: string
+          nthChild: 1
+          regex: "^[fF]"
+    - not:
+        matches: suppressed

@@ -1,0 +1,163 @@
+{% raw %}from collections.abc import Iterable
+from typing import Protocol
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.orm import Session
+
+from {% endraw %}{{ package_name }}{% raw %}.core.models import Actor, Role, TaskStatus
+from {% endraw %}{{ package_name }}{% raw %}.data.records import (
+    MembershipRecord,
+    OrgRecord,
+    ProjectRecord,
+    TaskAssigneeRecord,
+    TaskRecord,
+    UserRecord,
+    utcnow,
+)
+
+
+class OrgFactory(Protocol):
+    def __call__(self, *, name: str = ...) -> OrgRecord: ...
+
+
+class MemberFactory(Protocol):
+    def __call__(
+        self,
+        org: OrgRecord,
+        *,
+        role: Role = ...,
+        email: str | None = ...,
+        existing_user_id: str | None = ...,
+    ) -> Actor: ...
+
+
+class ProjectFactory(Protocol):
+    def __call__(
+        self, owner: Actor, *, name: str = ..., description: str = ..., deleted: bool = ...
+    ) -> ProjectRecord: ...
+
+
+class TaskFactory(Protocol):
+    def __call__(
+        self,
+        project: ProjectRecord,
+        *,
+        title: str = ...,
+        status: TaskStatus = ...,
+        assignee_ids: Iterable[str] = ...,
+    ) -> TaskRecord: ...
+
+
+# Factories flush rather than commit: the session fixture rolls everything back.
+
+
+@pytest.fixture
+def make_org(session: Session) -> OrgFactory:
+    def _make(*, name: str = "Test Org") -> OrgRecord:
+        record = OrgRecord(name=name)
+        session.add(record)
+        session.flush()
+        return record
+
+    return _make
+
+
+@pytest.fixture
+def make_member(session: Session) -> MemberFactory:
+    def _make(
+        org: OrgRecord,
+        *,
+        role: Role = Role.MEMBER,
+        email: str | None = None,
+        existing_user_id: str | None = None,
+    ) -> Actor:
+        user_id = existing_user_id
+        if user_id is None:
+            user = UserRecord(
+                email=email or f"user-{uuid4().hex[:8]}@example.com", display_name="Test User"
+            )
+            session.add(user)
+            session.flush()
+            user_id = user.id
+        session.add(MembershipRecord(org_id=org.id, user_id=user_id, role=role))
+        session.flush()
+        return Actor(user_id=user_id, org_id=org.id, role=role)
+
+    return _make
+
+
+@pytest.fixture
+def make_project(session: Session) -> ProjectFactory:
+    def _make(
+        owner: Actor, *, name: str = "Test Project", description: str = "", deleted: bool = False
+    ) -> ProjectRecord:
+        record = ProjectRecord(
+            org_id=owner.org_id,
+            owner_id=owner.user_id,
+            name=name,
+            description=description,
+            deleted_at=utcnow() if deleted else None,
+        )
+        session.add(record)
+        session.flush()
+        return record
+
+    return _make
+
+
+@pytest.fixture
+def make_task(session: Session) -> TaskFactory:
+    def _make(
+        project: ProjectRecord,
+        *,
+        title: str = "Test Task",
+        status: TaskStatus = TaskStatus.OPEN,
+        assignee_ids: Iterable[str] = (),
+    ) -> TaskRecord:
+        record = TaskRecord(
+            org_id=project.org_id,
+            project_id=project.id,
+            title=title,
+            status=status,
+            completed_at=utcnow() if status == TaskStatus.DONE else None,
+            assignees=[TaskAssigneeRecord(user_id=user_id) for user_id in assignee_ids],
+        )
+        session.add(record)
+        session.flush()
+        return record
+
+    return _make
+
+
+@pytest.fixture
+def sample_org(make_org: OrgFactory) -> OrgRecord:
+    return make_org(name="Acme")
+
+
+@pytest.fixture
+def sample_admin(make_member: MemberFactory, sample_org: OrgRecord) -> Actor:
+    return make_member(sample_org, role=Role.ADMIN)
+
+
+@pytest.fixture
+def sample_member(make_member: MemberFactory, sample_org: OrgRecord) -> Actor:
+    return make_member(sample_org)
+
+
+@pytest.fixture
+def other_member(make_member: MemberFactory, sample_org: OrgRecord) -> Actor:
+    """A second member of the sample org: same tenant, different owner."""
+    return make_member(sample_org)
+
+
+@pytest.fixture
+def other_org_admin(make_org: OrgFactory, make_member: MemberFactory) -> Actor:
+    """An admin of a different org: the cross-tenant case."""
+    return make_member(make_org(name="Other Org"), role=Role.ADMIN)
+
+
+@pytest.fixture
+def sample_project(make_project: ProjectFactory, sample_member: Actor) -> ProjectRecord:
+    return make_project(sample_member, name="Launch")
+{% endraw %}

@@ -1,0 +1,15 @@
+{% raw %}from typing import Annotated
+
+from fastapi import Depends
+
+from {% endraw %}{{ package_name }}{% raw %}.core.models import Project
+from {% endraw %}{{ package_name }}{% raw %}.routers.dependencies import ActorDep, ProjectOrchestratorDep
+
+
+def load_project(project_id: str, actor: ActorDep, projects: ProjectOrchestratorDep) -> Project:
+    """The path's project, scoped to the actor: 404 when missing or not visible."""
+    return projects.get_project(actor, project_id)
+
+
+ProjectDep = Annotated[Project, Depends(load_project)]
+{% endraw %}

@@ -1,0 +1,18 @@
+{% raw %}id: routers-no-data-access
+valid:
+  - from {% endraw %}{{ package_name }}{% raw %}.orchestrators import ProjectOrchestrator
+  - from {% endraw %}{{ package_name }}{% raw %}.data.pagination import PageRequest
+  - |
+    # sg-ignore(routers-no-data-access): reason the rule doesn't apply here
+    from {% endraw %}{{ package_name }}{% raw %}.data.records import BaseRecord
+invalid:
+  - |
+    # sg-ignore(some-other-rule): names a different rule, so this one still fires
+    from {% endraw %}{{ package_name }}{% raw %}.data.records import BaseRecord
+  - |
+    # sg-ignore: unnamed suppressions are not honored
+    from {% endraw %}{{ package_name }}{% raw %}.data.records import BaseRecord
+  - from {% endraw %}{{ package_name }}{% raw %}.data.repositories import ProjectRepository
+  - from {% endraw %}{{ package_name }}{% raw %}.data.records import ProjectRecord
+  - from {% endraw %}{{ package_name }}{% raw %}.data.query_scope import QueryScope
+{% endraw %}

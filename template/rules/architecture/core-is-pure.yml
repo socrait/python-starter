@@ -1,0 +1,29 @@
+# core/ holds domain models and exceptions that every layer imports. It depends on nothing
+# outside itself, so it never drags a framework or the database into a caller.
+id: core-is-pure
+language: Python
+severity: error
+message: core/ must not import web frameworks, the ORM, or other application layers.
+files:
+  - "src/*/core/**/*.py"
+utils:
+  # `# sg-ignore(core-is-pure): <reason>` on the line above the statement silences this rule only.
+  suppressed:
+    any:
+      - follows:
+          kind: comment
+          regex: "^# sg-ignore\\(core-is-pure\\):"
+      - inside:
+          stopBy:
+            kind: block
+          follows:
+            kind: comment
+            regex: "^# sg-ignore\\(core-is-pure\\):"
+rule:
+  all:
+    - any:
+        - kind: import_from_statement
+        - kind: import_statement
+    - regex: "^(from|import) (fastapi|starlette|sqlalchemy|alembic|\\w+\\.(data|routers|orchestrators|services|clients|libs|main|cli|dependencies))\\b"
+    - not:
+        matches: suppressed
