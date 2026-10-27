@@ -16,6 +16,7 @@ uv run app rules                         # ast-grep architecture rules
 uv run ast-grep test --skip-snapshot-tests   # after editing rules/ or rule-tests/
 uv run app db revision -m "add x"        # after changing data/records.py; review the file
 uv run app serve --reload                # local server; `app seed` prints test user ids
+uv run app profile --duration 30         # flame graph of the server (profile.html)
 ```
 
 A change is done when `uv run app check` and `uv run pre-commit run --all-files` pass

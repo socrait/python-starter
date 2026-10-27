@@ -30,11 +30,11 @@ type Handler = Callable[[argparse.Namespace, Settings], int]
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for `uv run app ...`."""
     parser = _build_parser()
-    # `app test` passes anything it doesn't recognize through to pytest.
+    # `app test` and `app profile` pass anything they don't recognize through to the tool.
     args, extra = parser.parse_known_args(argv)
-    if extra and args.handler is not _test:
+    if extra and args.handler not in (_test, _profile):
         parser.error(f"unrecognized arguments: {' '.join(extra)}")
-    args.pytest_args = extra
+    args.passthrough = extra
     settings = get_settings()
     configure_logging_from_settings(settings)
     handler: Handler = args.handler
@@ -87,6 +87,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ("check", "lint + typecheck + rules + test", _check),
     ):
         commands.add_parser(name, help=help_text).set_defaults(handler=handler)
+    profile = commands.add_parser(
+        "profile",
+        help="Run the server under Python 3.15's sampling profiler; extra arguments pass through",
+    )
+    profile.add_argument("--attach", type=int, metavar="PID", help="Profile a running process")
+    profile.add_argument("--duration", type=int, help="Stop after this many seconds")
+    profile.add_argument("--live", action="store_true", help="Interactive view, no file")
+    profile.add_argument("-o", "--output", default="profile.html", help="Flame graph file")
+    profile.set_defaults(handler=_profile)
     commands.add_parser("test", help="Run pytest; extra arguments pass through").set_defaults(
         handler=_test
     )
@@ -236,7 +245,25 @@ def _rules(_args: argparse.Namespace, _settings: Settings) -> int:
 
 
 def _test(args: argparse.Namespace, _settings: Settings) -> int:
-    return _run("pytest", *args.pytest_args)
+    return _run("pytest", *args.passthrough)
+
+
+def _profile(args: argparse.Namespace, _settings: Settings) -> int:
+    if sys.version_info < (3, 15):
+        print("`app profile` needs Python 3.15+ (profiling.sampling).", file=sys.stderr)
+        return 1
+    command = [sys.executable, "-m", "profiling.sampling"]
+    command += ["attach", str(args.attach)] if args.attach else ["run"]
+    # Sync handlers run in a threadpool, and most request time is spent waiting on the
+    # database: sample every thread, on wall-clock time rather than CPU time.
+    command += ["--all-threads", "--mode", "wall"]
+    if args.duration:
+        command += ["--duration", str(args.duration)]
+    command += ["--live"] if args.live else ["--flamegraph", "-o", args.output]
+    command += args.passthrough
+    if not args.attach:
+        command += ["-m", "starter_app.cli", "serve"]
+    return subprocess.call(command)  # noqa: S603 - our interpreter, our arguments
 
 
 def _check(args: argparse.Namespace, settings: Settings) -> int:

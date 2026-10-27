@@ -60,6 +60,7 @@ Everything runs through one entry point, `uv run app <command>`:
 | `typecheck` | ty |
 | `rules` | ast-grep architecture rules |
 | `check` | lint, typecheck, rules, then the test suite in parallel |
+| `profile` | run the server under Python's sampling profiler (see [Profiling](#profiling)) |
 
 ## Layout
 
@@ -121,6 +122,24 @@ STARTER_APP_TEST_DATABASE_URL=postgresql+psycopg://app:app@localhost:5432/app_te
   uv run app test -n auto
 ```
 <!-- end: postgres-only -->
+
+## Profiling
+
+`app profile` runs the server under Python 3.15's built-in sampling profiler, sampling every
+thread on wall-clock time, so the threadpool's request handling and time spent waiting on
+the database both show up. Exercise the endpoints, stop the server, and open the flame graph:
+
+```bash
+uv run app profile                     # writes profile.html when you stop the server (Ctrl-C)
+uv run app profile --duration 30       # stop after 30 seconds
+uv run app profile --live              # interactive top-like view
+uv run app profile --attach PID        # profile a server that is already running
+uv run app profile -- --heatmap        # any other profiler flag passes through
+```
+
+On macOS the profiler needs root to read the server's memory: `sudo -E uv run app profile`.
+On Linux, profiling a process you start needs no privileges; attaching to another one needs
+ptrace permission (`--cap-add SYS_PTRACE` in a container).
 
 ## Deploying
 

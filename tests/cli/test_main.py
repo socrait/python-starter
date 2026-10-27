@@ -1,3 +1,5 @@
+import socket
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -41,3 +43,18 @@ def test_reset_refuses_deployed_databases(monkeypatch: pytest.MonkeyPatch):
         assert main(["db", "reset", "--yes"]) == 1
     finally:
         get_settings.cache_clear()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="profiling.sampling is new in 3.15")
+@pytest.mark.skipif(sys.platform == "darwin", reason="macOS profiling needs root")
+def test_profile_writes_a_flame_graph(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        free_port = probe.getsockname()[1]
+    monkeypatch.setenv("STARTER_APP_DATABASE_URL", "sqlite://")
+    monkeypatch.setenv("STARTER_APP_ENVIRONMENT", "test")
+    monkeypatch.setenv("STARTER_APP_PORT", str(free_port))
+    output = tmp_path / "profile.html"
+
+    assert main(["profile", "--duration", "2", "-o", str(output)]) == 0
+    assert output.stat().st_size > 0
