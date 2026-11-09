@@ -28,7 +28,7 @@ repos:
       - id: check-jsonschema
         name: check ast-grep rules
         files: ^rules/.*\.ya?ml$
-        args: [--schemafile, https://raw.githubusercontent.com/ast-grep/ast-grep/0.51.0/schemas/rule.json]
+        args: [--schemafile, https://raw.githubusercontent.com/ast-grep/ast-grep/0.51.1/schemas/rule.json]
 
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
     rev: v1.31.1
