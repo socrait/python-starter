@@ -31,7 +31,7 @@ repos:
         args: [--schemafile, https://raw.githubusercontent.com/ast-grep/ast-grep/0.51.0/schemas/rule.json]
 
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.31.1
+    rev: v1.32.0
     hooks:
       - id: zizmor
 
